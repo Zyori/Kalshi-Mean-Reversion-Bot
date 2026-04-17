@@ -1,0 +1,46 @@
+# Secrets and credentials
+.env
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Database
+*.db
+*.sqlite3
+
+# Node / Dashboard
+node_modules/
+dashboard/dist/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Alembic compiled
+alembic/versions/__pycache__/
