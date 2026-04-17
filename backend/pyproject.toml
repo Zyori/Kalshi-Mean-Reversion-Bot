@@ -1,0 +1,49 @@
+[project]
+name = "kalshi-mean-reversion-bot"
+version = "0.1.0"
+description = "Mean reversion sports trading bot for Kalshi prediction markets"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.34",
+    "sqlalchemy[asyncio]>=2.0",
+    "aiosqlite>=0.21",
+    "alembic>=1.15",
+    "httpx>=0.28",
+    "websockets>=14.0",
+    "pydantic>=2.10",
+    "pydantic-settings>=2.7",
+    "cryptography>=44.0",
+    "structlog>=24.4",
+    "pandas>=2.2",
+    "numpy>=2.1",
+    "scipy>=1.14",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.25",
+    "respx>=0.22",
+    "ruff>=0.9",
+    "pyright>=1.1",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "TCH"]
+
+[tool.pyright]
+pythonVersion = "3.12"
+typeCheckingMode = "standard"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
