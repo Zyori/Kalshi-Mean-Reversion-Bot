@@ -1,0 +1,139 @@
+import {
+  useAnalysisSummary,
+  useAnalysisBySport,
+  useEquityCurve,
+  useKellyComparison,
+  useInsights,
+} from "../hooks/useAnalytics";
+import { Card } from "../components/ui/Card";
+import { StatCard } from "../components/ui/StatCard";
+import { Badge } from "../components/ui/Badge";
+import { Skeleton } from "../components/ui/Skeleton";
+import { EquityCurve } from "../components/charts/EquityCurve";
+import { KellyComparison } from "../components/charts/KellyComparison";
+import { SportBreakdownChart } from "../components/charts/SportBreakdownChart";
+import { formatPnl, formatPercent, formatDate, pnlColor } from "../lib/utils";
+
+function InsightTypeBadge({ type }: { type: string }) {
+  const styles: Record<string, string> = {
+    edge_validated: "bg-profit/20 text-profit",
+    edge_degraded: "bg-loss/20 text-loss",
+    parameter_recommendation: "bg-accent/20 text-accent-light",
+    anomaly_detected: "bg-yellow-500/20 text-yellow-400",
+  };
+  return (
+    <Badge className={styles[type] ?? "bg-surface-2 text-text-dim"}>
+      {type.replace(/_/g, " ")}
+    </Badge>
+  );
+}
+
+export function AnalyticsPage() {
+  const { data: summary, isLoading: loadingSummary } = useAnalysisSummary();
+  const { data: bySport } = useAnalysisBySport();
+  const { data: equity } = useEquityCurve();
+  const { data: kelly } = useKellyComparison();
+  const { data: insights } = useInsights();
+
+  if (loadingSummary) {
+    return (
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-24" />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <h2 className="text-lg font-semibold">Analytics</h2>
+
+      {summary && (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            label="Total Trades"
+            value={String(summary.total_trades)}
+            subtext={`${summary.open} open`}
+          />
+          <StatCard
+            label="Win Rate"
+            value={formatPercent(summary.win_rate)}
+            subtext={`${summary.wins}W / ${summary.losses}L`}
+            className={
+              summary.win_rate > 0.5
+                ? "text-profit"
+                : summary.win_rate < 0.5
+                  ? "text-loss"
+                  : ""
+            }
+          />
+          <StatCard
+            label="Total PnL"
+            value={formatPnl(summary.total_pnl_cents)}
+            className={pnlColor(summary.total_pnl_cents)}
+          />
+          <StatCard
+            label="Resolved"
+            value={String(summary.resolved)}
+            subtext={`${summary.total_trades - summary.resolved} pending`}
+          />
+        </div>
+      )}
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <h3 className="mb-3 text-sm font-medium text-text-dim">
+            Equity Curve
+          </h3>
+          <EquityCurve data={equity ?? []} />
+        </Card>
+        <Card>
+          <h3 className="mb-3 text-sm font-medium text-text-dim">
+            Kelly vs Flat Sizing
+          </h3>
+          <KellyComparison data={kelly ?? []} />
+        </Card>
+      </div>
+
+      <Card>
+        <h3 className="mb-3 text-sm font-medium text-text-dim">
+          PnL by Sport
+        </h3>
+        <SportBreakdownChart data={bySport ?? []} />
+      </Card>
+
+      {insights && insights.length > 0 && (
+        <Card>
+          <h3 className="mb-3 text-sm font-medium text-text-dim">
+            Insights
+          </h3>
+          <div className="space-y-3">
+            {insights.map((ins) => (
+              <div
+                key={ins.id}
+                className="rounded-md border border-border/50 bg-surface-2/50 p-3"
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-2">
+                    <InsightTypeBadge type={ins.type} />
+                    <span className="text-sm font-medium">{ins.title}</span>
+                  </div>
+                  <span className="text-xs text-text-dim">
+                    {formatDate(ins.created_at)}
+                  </span>
+                </div>
+                <p className="text-xs text-text-dim">{ins.body}</p>
+                {ins.recommendation && (
+                  <p className="mt-1 text-xs text-accent-light">
+                    {ins.recommendation}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+}
