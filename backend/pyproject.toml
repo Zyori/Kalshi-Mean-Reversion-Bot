@@ -41,6 +41,9 @@ extend-exclude = ["alembic/versions"]
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "TCH"]
 
+[tool.ruff.lint.per-file-ignores]
+"src/api/routes/*.py" = ["B008"]
+
 [tool.pyright]
 pythonVersion = "3.12"
 typeCheckingMode = "standard"
