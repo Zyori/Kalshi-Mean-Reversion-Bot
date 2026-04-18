@@ -44,6 +44,9 @@ select = ["E", "F", "I", "UP", "B", "SIM", "TCH"]
 pythonVersion = "3.12"
 typeCheckingMode = "standard"
 
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

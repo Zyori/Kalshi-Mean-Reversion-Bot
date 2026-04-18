@@ -1,0 +1,34 @@
+from pathlib import Path
+
+from pydantic import field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from src.core.types import KalshiEnvironment
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    kalshi_key_id: str = ""
+    kalshi_private_key_path: Path = Path("~/.config/kalshi/private_key.pem")
+    kalshi_environment: KalshiEnvironment = KalshiEnvironment.DEMO
+
+    odds_api_key: str = ""
+
+    database_url: str = "sqlite+aiosqlite:///./data/bot.db"
+
+    host: str = "127.0.0.1"
+    port: int = 8000
+    log_level: str = "info"
+
+    @field_validator("kalshi_private_key_path")
+    @classmethod
+    def expand_key_path(cls, v: Path) -> Path:
+        return v.expanduser()
+
+
+settings = Settings()
