@@ -1,0 +1,93 @@
+import pytest
+
+from src.paper_trader.portfolio import Portfolio
+from src.paper_trader.simulator import PaperTradeSimulator, calculate_slippage
+
+
+class TestCalculateSlippage:
+    def test_minimum_slippage(self):
+        assert calculate_slippage(50) >= 1
+
+    def test_half_percent_base(self):
+        assert calculate_slippage(80) == 1  # 80 * 0.005 = 0.4, max(1, 0) = 1
+
+    def test_high_price(self):
+        assert calculate_slippage(99) == 1
+
+    def test_low_depth_adds_slippage(self):
+        no_depth = calculate_slippage(50, ask_depth=None)
+        low_depth = calculate_slippage(50, ask_depth=2)
+        assert low_depth > no_depth
+
+    def test_zero_depth(self):
+        slip = calculate_slippage(50, ask_depth=0)
+        assert slip > calculate_slippage(50, ask_depth=10)
+
+    def test_high_depth_no_extra(self):
+        assert calculate_slippage(50, ask_depth=10) == calculate_slippage(50)
+        assert calculate_slippage(50, ask_depth=50) == calculate_slippage(50)
+
+
+class TestPaperTradeSimulator:
+    @pytest.fixture
+    def sim(self):
+        return PaperTradeSimulator(Portfolio(initial_bankroll_cents=50000))
+
+    def _make_event(self, **overrides):
+        base = {
+            "confidence_score": 0.8,
+            "kalshi_price_at": 40,
+            "ask_depth": 20,
+            "sport": "nhl",
+            "game_event_id": 1,
+            "market_id": 1,
+        }
+        base.update(overrides)
+        return base
+
+    def test_open_trade(self, sim: PaperTradeSimulator):
+        trade = sim.evaluate_opportunity(self._make_event())
+        assert trade is not None
+        assert trade["status"] == "open"
+        assert trade["entry_price"] == 40
+        assert trade["entry_price_adj"] > 40
+        assert trade["kelly_size_cents"] > 0
+
+    def test_zero_confidence_rejected(self, sim: PaperTradeSimulator):
+        trade = sim.evaluate_opportunity(self._make_event(confidence_score=0))
+        assert trade is None
+
+    def test_invalid_price_rejected(self, sim: PaperTradeSimulator):
+        assert sim.evaluate_opportunity(self._make_event(kalshi_price_at=0)) is None
+        assert sim.evaluate_opportunity(self._make_event(kalshi_price_at=100)) is None
+        assert sim.evaluate_opportunity(self._make_event(kalshi_price_at=None)) is None
+
+    def test_portfolio_full_rejected(self):
+        sim = PaperTradeSimulator(Portfolio(initial_bankroll_cents=50000, max_positions=1))
+        sim.evaluate_opportunity(self._make_event())
+        trade2 = sim.evaluate_opportunity(self._make_event())
+        assert trade2 is None
+
+    def test_resolve_win(self, sim: PaperTradeSimulator):
+        trade = sim.evaluate_opportunity(self._make_event())
+        resolved = sim.resolve_trade(trade, exit_price=100, won=True)
+        assert resolved["status"] == "resolved_win"
+        assert resolved["pnl_cents"] > 0
+
+    def test_resolve_loss(self, sim: PaperTradeSimulator):
+        trade = sim.evaluate_opportunity(self._make_event())
+        resolved = sim.resolve_trade(trade, exit_price=0, won=False)
+        assert resolved["status"] == "resolved_loss"
+        assert resolved["pnl_cents"] < 0
+
+    def test_bankroll_updates_after_resolution(self, sim: PaperTradeSimulator):
+        initial = sim.portfolio.bankroll_cents
+        trade = sim.evaluate_opportunity(self._make_event())
+        sim.resolve_trade(trade, exit_price=100, won=True)
+        assert sim.portfolio.bankroll_cents > initial
+
+    def test_position_closed_after_resolution(self, sim: PaperTradeSimulator):
+        trade = sim.evaluate_opportunity(self._make_event())
+        assert sim.portfolio.open_count == 1
+        sim.resolve_trade(trade, exit_price=0, won=False)
+        assert sim.portfolio.open_count == 0
