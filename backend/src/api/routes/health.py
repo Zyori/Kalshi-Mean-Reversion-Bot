@@ -2,6 +2,8 @@ import time
 
 from fastapi import APIRouter
 
+from src.supervisor import registry
+
 router = APIRouter()
 
 _start_time = time.monotonic()
@@ -13,10 +15,5 @@ async def health():
     return {
         "status": "ok",
         "uptime_seconds": round(uptime, 1),
-        "sources": {
-            "kalshi_ws": "disconnected",
-            "espn_scoreboard": "disconnected",
-            "espn_events": "disconnected",
-            "odds_api": "disconnected",
-        },
+        "sources": registry.source_statuses(),
     }

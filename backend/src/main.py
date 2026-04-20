@@ -1,3 +1,5 @@
+import asyncio
+import contextlib
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -6,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.config import settings
 from src.core.database import create_engine, create_session_factory
 from src.core.logging import get_logger, setup_logging
+from src.supervisor import run_supervisor
 
 setup_logging(settings.log_level)
 logger = get_logger(__name__)
@@ -17,8 +20,11 @@ session_factory = create_session_factory(engine)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("starting", environment=settings.kalshi_environment.value)
-    # Collector tasks will be added in later build steps
+    supervisor_task = asyncio.create_task(run_supervisor())
     yield
+    supervisor_task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await supervisor_task
     await engine.dispose()
     logger.info("shutdown_complete")
 
@@ -27,7 +33,7 @@ app = FastAPI(title="Kalshi Mean Reversion Bot", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["http://localhost:5173", "https://lutz.bot"],
     allow_methods=["*"],
     allow_headers=["*"],
 )

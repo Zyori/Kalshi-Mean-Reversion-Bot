@@ -10,8 +10,8 @@ async def test_health_returns_ok(client: AsyncClient):
     assert "sources" in data
 
 
-async def test_health_sources_initially_disconnected(client: AsyncClient):
+async def test_health_sources_initially_not_connected(client: AsyncClient):
     resp = await client.get("/api/health")
     sources = resp.json()["sources"]
     for source in sources.values():
-        assert source == "disconnected"
+        assert source in ("disconnected", "disabled")
