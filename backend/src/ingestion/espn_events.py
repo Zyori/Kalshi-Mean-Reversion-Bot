@@ -4,6 +4,7 @@ from typing import Any
 
 import httpx
 
+from src.config import settings
 from src.core.logging import get_logger
 from src.core.types import Sport
 
@@ -28,9 +29,6 @@ LATENCY_ESTIMATES: dict[str, timedelta] = {
     Sport.SOCCER: timedelta(seconds=20),
     Sport.UFC: timedelta(seconds=15),
 }
-
-POLL_INTERVAL_S = 15.0
-
 
 def _extract_events(plays: list[dict], sport: str) -> list[dict[str, Any]]:
     events = []
@@ -202,4 +200,4 @@ async def espn_events_poller(queue: asyncio.Queue) -> None:
         except Exception:
             logger.exception("espn_events_poll_error")
             poller._status = "error"
-        await asyncio.sleep(POLL_INTERVAL_S)
+        await asyncio.sleep(settings.events_poll_interval_s)

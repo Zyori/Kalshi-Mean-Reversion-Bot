@@ -21,9 +21,6 @@ SPORT_KEYS: dict[str, str] = {
     Sport.UFC: "mma_mixed_martial_arts",
 }
 
-POLL_INTERVAL_S = 300.0
-
-
 def american_to_implied_prob(odds: int) -> float:
     if odds > 0:
         return 100.0 / (odds + 100.0)
@@ -146,4 +143,4 @@ async def odds_poller(queue: asyncio.Queue, sports: list[str] | None = None) -> 
         except Exception:
             logger.exception("odds_api_poll_error")
             poller._status = "error"
-        await asyncio.sleep(POLL_INTERVAL_S)
+        await asyncio.sleep(settings.odds_poll_interval_s)

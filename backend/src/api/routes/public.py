@@ -17,7 +17,8 @@ async def heartbeat():
 @router.get("/status")
 async def status():
     sources = registry.source_statuses()
-    sources_up = sum(1 for v in sources.values() if v == "ok")
+    healthy_states = {"ok", "connected"}
+    sources_up = sum(1 for v in sources.values() if v in healthy_states)
     sources_total = sum(1 for v in sources.values() if v != "disabled")
     return {
         "alive": True,

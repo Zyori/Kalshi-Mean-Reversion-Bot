@@ -21,7 +21,7 @@ session_factory = create_session_factory(engine)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("starting", environment=settings.kalshi_environment.value)
-    supervisor_task = asyncio.create_task(run_supervisor())
+    supervisor_task = asyncio.create_task(run_supervisor(session_factory))
     yield
     supervisor_task.cancel()
     with contextlib.suppress(asyncio.CancelledError):

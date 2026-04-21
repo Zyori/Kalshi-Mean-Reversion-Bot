@@ -31,6 +31,12 @@ class Settings(BaseSettings):
     session_max_age_days: int = 30
     session_cookie_name: str = "lutz_session"
 
+    scoreboard_live_poll_interval_s: float = 10.0
+    scoreboard_pregame_poll_interval_s: float = 300.0
+    scoreboard_idle_poll_interval_s: float = 43200.0
+    odds_poll_interval_s: float = 43200.0
+    events_poll_interval_s: float = 15.0
+
     @field_validator("kalshi_private_key_path")
     @classmethod
     def expand_key_path(cls, v: Path) -> Path:

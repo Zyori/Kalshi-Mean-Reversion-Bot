@@ -2,13 +2,21 @@ import asyncio
 from dataclasses import dataclass, field
 from typing import Any
 
+from sqlalchemy.ext.asyncio import async_sessionmaker
+
 from src.analysis.accumulators import Accumulators
+from src.config import settings
 from src.core.logging import get_logger
 from src.ingestion.espn_events import EspnEventsPoller
 from src.ingestion.espn_scoreboard import EspnScoreboardPoller
 from src.ingestion.odds import OddsApiPoller
 from src.paper_trader.portfolio import Portfolio
 from src.paper_trader.simulator import PaperTradeSimulator
+from src.services.ingestion_service import (
+    record_game_event,
+    record_opening_line,
+    upsert_game_from_scoreboard,
+)
 from src.strategy.detector import EventDetector
 
 logger = get_logger(__name__)
@@ -40,66 +48,84 @@ registry = ComponentRegistry()
 async def _scoreboard_loop(
     scoreboard: EspnScoreboardPoller,
     events_poller: EspnEventsPoller,
+    session_factory: async_sessionmaker,
 ) -> None:
     while True:
         try:
             updates = await scoreboard.poll_once()
-            for update in updates:
-                await scoreboard._enqueue(update)
-                espn_id = update.get("espn_id")
-                sport = update.get("sport")
-                status = update.get("status", "")
-                if espn_id and sport and status.lower() in ("in_progress", "status_in_progress"):
-                    events_poller.watch_game(espn_id, sport)
-                elif espn_id and status.lower() in ("final", "status_final", "post"):
-                    events_poller.unwatch_game(espn_id)
+            if updates:
+                async with session_factory() as db:
+                    for update in updates:
+                        await upsert_game_from_scoreboard(db, update)
+                        await scoreboard._enqueue(update)
+                        espn_id = update.get("espn_id")
+                        sport = update.get("sport")
+                        status = update.get("status", "")
+                        if (
+                            espn_id
+                            and sport
+                            and status.lower() in ("in_progress", "status_in_progress")
+                        ):
+                            events_poller.watch_game(espn_id, sport)
+                        elif espn_id and status.lower() in ("final", "status_final", "post"):
+                            events_poller.unwatch_game(espn_id)
+                    await db.commit()
             if updates:
                 logger.info("scoreboard_updates", count=len(updates))
         except Exception:
             logger.exception("scoreboard_loop_error")
-        await asyncio.sleep(10.0)
+        await asyncio.sleep(scoreboard.next_interval())
 
 
-async def _events_loop(events_poller: EspnEventsPoller) -> None:
+async def _events_loop(
+    events_poller: EspnEventsPoller,
+    detector: EventDetector,
+    trade_queue: asyncio.Queue,
+    session_factory: async_sessionmaker,
+) -> None:
     while True:
         try:
             new_events = await events_poller.poll_all()
-            for event in new_events:
-                await events_poller._enqueue(event)
+            if new_events:
+                async with session_factory() as db:
+                    for event in new_events:
+                        detected = await detector.process_event(event)
+                        payload = detected or event
+                        await record_game_event(db, payload)
+                        await events_poller._enqueue(payload)
+                        if detected:
+                            if trade_queue.full():
+                                logger.warning("trade_queue_full")
+                            await trade_queue.put(detected)
+                    await db.commit()
             if new_events:
                 logger.info("events_detected", count=len(new_events))
         except Exception:
             logger.exception("events_loop_error")
-        await asyncio.sleep(15.0)
+        await asyncio.sleep(settings.events_poll_interval_s)
 
 
-async def _odds_loop(odds: OddsApiPoller, detector: EventDetector) -> None:
+async def _odds_loop(
+    odds: OddsApiPoller,
+    detector: EventDetector,
+    session_factory: async_sessionmaker,
+) -> None:
     while True:
         try:
             lines = await odds.poll_once()
-            for line in lines:
-                await odds._enqueue(line)
-                espn_id = f"{line.get('home_team')}:{line.get('away_team')}"
-                prob = line.get("home_prob", 0.5)
-                detector.set_baseline(espn_id, prob)
+            if lines:
+                async with session_factory() as db:
+                    for line in lines:
+                        game = await record_opening_line(db, line)
+                        await odds._enqueue(line)
+                        if game.espn_id:
+                            detector.set_baseline(game.espn_id, line.get("home_prob", 0.5))
+                    await db.commit()
             if lines:
                 logger.info("odds_captured", count=len(lines))
         except Exception:
             logger.exception("odds_loop_error")
-        await asyncio.sleep(300.0)
-
-
-async def _detector_loop(detector: EventDetector, trade_queue: asyncio.Queue) -> None:
-    while True:
-        try:
-            event = await detector.espn_queue.get()
-            result = await detector.process_event(event)
-            if result:
-                if trade_queue.full():
-                    logger.warning("trade_queue_full")
-                await trade_queue.put(result)
-        except Exception:
-            logger.exception("detector_loop_error")
+        await asyncio.sleep(settings.odds_poll_interval_s)
 
 
 async def _trader_loop(
@@ -122,7 +148,7 @@ async def _trader_loop(
             logger.exception("trader_loop_error")
 
 
-async def run_supervisor() -> None:
+async def run_supervisor(session_factory: async_sessionmaker) -> None:
     espn_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=QUEUE_SIZE)
     trade_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=QUEUE_SIZE)
 
@@ -144,10 +170,9 @@ async def run_supervisor() -> None:
 
     try:
         async with asyncio.TaskGroup() as tg:
-            tg.create_task(_scoreboard_loop(scoreboard, events_poller))
-            tg.create_task(_events_loop(events_poller))
-            tg.create_task(_odds_loop(odds, detector))
-            tg.create_task(_detector_loop(detector, trade_queue))
+            tg.create_task(_scoreboard_loop(scoreboard, events_poller, session_factory))
+            tg.create_task(_events_loop(events_poller, detector, trade_queue, session_factory))
+            tg.create_task(_odds_loop(odds, detector, session_factory))
             tg.create_task(_trader_loop(trade_queue, simulator, accumulators))
     except* Exception as eg:
         for exc in eg.exceptions:

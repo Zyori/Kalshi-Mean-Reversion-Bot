@@ -4,6 +4,7 @@ from typing import Any
 
 import httpx
 
+from src.config import settings
 from src.core.logging import get_logger
 from src.core.types import Sport
 
@@ -17,9 +18,6 @@ SCOREBOARD_URLS: dict[str, str] = {
     Sport.SOCCER: "https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/scoreboard",
     Sport.UFC: "https://site.api.espn.com/apis/site/v2/sports/mma/ufc/scoreboard",
 }
-
-POLL_INTERVAL_S = 10.0
-
 
 def _parse_game(event: dict, sport: str) -> dict[str, Any]:
     competition = event["competitions"][0]
@@ -58,6 +56,7 @@ class EspnScoreboardPoller:
         self._previous: dict[str, dict] = {}
         self._last_poll: datetime | None = None
         self._status = "disconnected"
+        self._last_state = "idle"
 
     @property
     def status(self) -> str:
@@ -68,6 +67,8 @@ class EspnScoreboardPoller:
 
     async def poll_once(self) -> list[dict]:
         updates = []
+        has_live_game = False
+        has_upcoming_game = False
         for sport in self.sports:
             url = SCOREBOARD_URLS.get(sport)
             if not url:
@@ -84,6 +85,12 @@ class EspnScoreboardPoller:
                 parsed = _parse_game(event, sport)
                 espn_id = parsed["espn_id"]
                 prev = self._previous.get(espn_id)
+                status = parsed["status"].lower()
+
+                if status in {"in_progress", "status_in_progress"}:
+                    has_live_game = True
+                elif status not in {"final", "status_final", "post"}:
+                    has_upcoming_game = True
 
                 if prev and (
                     prev["home_score"] != parsed["home_score"]
@@ -100,7 +107,20 @@ class EspnScoreboardPoller:
 
         self._last_poll = datetime.now(UTC)
         self._status = "connected"
+        if has_live_game:
+            self._last_state = "live"
+        elif has_upcoming_game:
+            self._last_state = "pregame"
+        else:
+            self._last_state = "idle"
         return updates
+
+    def next_interval(self) -> float:
+        if self._last_state == "live":
+            return settings.scoreboard_live_poll_interval_s
+        if self._last_state == "pregame":
+            return settings.scoreboard_pregame_poll_interval_s
+        return settings.scoreboard_idle_poll_interval_s
 
     async def _enqueue(self, data: dict) -> None:
         if self.queue.full():
@@ -120,4 +140,4 @@ async def espn_scoreboard_poller(queue: asyncio.Queue, sports: list[str] | None 
         except Exception:
             logger.exception("espn_scoreboard_poll_error")
             poller._status = "error"
-        await asyncio.sleep(POLL_INTERVAL_S)
+        await asyncio.sleep(poller.next_interval())
