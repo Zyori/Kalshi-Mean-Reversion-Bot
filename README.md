@@ -1,23 +1,23 @@
 # Kalshi Mean Reversion Bot
 
-A sports prediction market trading bot that detects mean-reversion opportunities on [Kalshi](https://kalshi.com). Monitors live game events via ESPN, compares in-game price movements against pre-game sportsbook lines, and simulates paper trades with Kelly criterion sizing.
+A sports market research bot for collecting sportsbook baselines, live game events, and paper-trading signals for future mean-reversion work on [Kalshi](https://kalshi.com).
 
-**Phase 1** — data collection, paper trading, and statistical validation. No real money is at risk.
+**Phase 1** is focused on durable data collection and paper-trade scaffolding. The backend now persists schedules, opening lines, and detected ESPN events so the project can run continuously and build a dataset before real-money trading is considered.
 
 ## How It Works
 
 ```
-ESPN Scoreboard → detects score changes
-ESPN Events     → classifies game events (goals, TDs, red cards)
+ESPN Scoreboard → keeps schedules and live game states in sync
+ESPN Events     → detects significant live game events
 The Odds API    → captures pre-game sportsbook lines as baselines
-Kalshi WS/REST  → tracks live prediction market prices
+Kalshi REST/WS  → adapter layer exists, demo-first by default
                     ↓
 Strategy Engine → classifies events (reversion_candidate / structural_shift / neutral)
-                → scores opportunities 0.0–1.0 (deviation × time remaining)
+                → scores opportunities once Kalshi price data is attached
                     ↓
 Paper Trader    → quarter-Kelly sizing with Bayesian edge shrinkage
                 → slippage model (0.5% + depth adjustment)
-                → tracks both Kelly-sized and flat $5 PnL
+                → currently scaffolded behind the ingestion layer
                     ↓
 Analysis Engine → binomial test (win rate > 50%)
                 → t-test (mean PnL > $0)
@@ -28,9 +28,18 @@ Dashboard       → Markets / Trades / Analytics views
                 → equity curve, Kelly comparison, sport breakdown
 ```
 
+## Current Phase-1 Status
+
+- Persisted today: games, opening lines, and significant ESPN events.
+- Adaptive polling: idle schedule sync backs off heavily, live games poll quickly.
+- Auth: password-protected admin backend with separate public status endpoints.
+- Kalshi mode: configured for `demo` by default, but live market snapshot capture is still an integration step rather than a finished data path.
+
+This means the project is ready to start building a historical dataset, but not yet ready to claim end-to-end market replay or meaningful paper-trade analytics from Kalshi prices.
+
 ## Sports Covered
 
-NHL, NBA, MLB, NFL, Soccer (EPL), UFC — each with sport-specific event classifiers. NHL has the richest event data (power plays, goalie pulls) and is the primary validation target.
+NHL, NBA, MLB, NFL, Soccer (EPL), UFC are recognized by the collectors and classifiers. NHL is still the best first target because the event data is richer and cleaner.
 
 ## Tech Stack
 
@@ -69,7 +78,12 @@ The dashboard proxies `/api` requests to the backend at `localhost:8000`.
 | `KALSHI_PRIVATE_KEY_PATH` | Yes | Path to RSA private key PEM file |
 | `KALSHI_ENVIRONMENT` | No | `demo` (default) or `prod` |
 | `ODDS_API_KEY` | Yes | The Odds API key (free tier: 500 req/month) |
-| `DATABASE_URL` | No | Defaults to `sqlite+aiosqlite:///./bot.db` |
+| `DATABASE_URL` | No | Defaults to `sqlite+aiosqlite:///./data/bot.db` |
+| `SCOREBOARD_LIVE_POLL_INTERVAL_S` | No | Live-game scoreboard cadence, default `10` |
+| `SCOREBOARD_PREGAME_POLL_INTERVAL_S` | No | Pregame cadence, default `300` |
+| `SCOREBOARD_IDLE_POLL_INTERVAL_S` | No | Idle schedule-sync cadence, default `43200` |
+| `ODDS_POLL_INTERVAL_S` | No | Opening-line sync cadence, default `43200` |
+| `EVENTS_POLL_INTERVAL_S` | No | Live event cadence for watched games, default `15` |
 
 ## Testing
 
@@ -119,6 +133,6 @@ dashboard/
 | GET | `/api/insights` | Statistical insights log |
 | PATCH | `/api/config/{key}` | Update strategy parameter |
 
-## License
+## Notes
 
-Private — not licensed for redistribution.
+This is a public build log as much as a trading project. Keep credentials out of the repo, keep the Kalshi key material outside the tree, and prefer small documented commits from `main`.
