@@ -121,3 +121,36 @@ async def test_record_game_event_attaches_to_game(db_session_factory):
         assert stored_event is not None
         assert stored_event.game_id == game.id
         assert stored_event.classification == "reversion_candidate"
+
+
+async def test_record_opening_line_handles_naive_datetime_from_existing_sqlite_row(
+    db_session_factory,
+):
+    async with db_session_factory() as db:
+        existing = Game(
+            sport="mlb",
+            home_team="Los Angeles Dodgers",
+            away_team="San Diego Padres",
+            start_time=datetime(2026, 4, 22, 2, 10),
+            status="scheduled",
+        )
+        db.add(existing)
+        await db.flush()
+
+        game = await record_opening_line(
+            db,
+            {
+                "sport": "mlb",
+                "home_team": "Los Angeles Dodgers",
+                "away_team": "San Diego Padres",
+                "start_time": "2026-04-22T02:10:00Z",
+                "source": "draftkings",
+                "home_prob": 0.61,
+                "away_prob": 0.39,
+                "captured_at": "2026-04-21T20:00:00Z",
+                "odds_raw": {"home": -156, "away": 140},
+            },
+        )
+        await db.commit()
+
+        assert game.id == existing.id

@@ -27,6 +27,14 @@ def _parse_iso_datetime(value: str | None) -> datetime | None:
     return dt.astimezone(UTC)
 
 
+def _coerce_utc(dt: datetime | None) -> datetime | None:
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC)
+
+
 async def _find_game_by_matchup(
     db: AsyncSession,
     *,
@@ -48,7 +56,10 @@ async def _find_game_by_matchup(
         return candidates[0]
 
     for game in candidates:
-        delta_hours = abs((game.start_time - start_time).total_seconds()) / 3600
+        game_start = _coerce_utc(game.start_time)
+        if game_start is None:
+            continue
+        delta_hours = abs((game_start - start_time).total_seconds()) / 3600
         if delta_hours <= GAME_MATCH_WINDOW_HOURS:
             return game
     return None
