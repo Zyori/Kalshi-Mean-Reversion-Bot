@@ -8,7 +8,7 @@ from src.analysis.accumulators import Accumulators
 from src.config import settings
 from src.core.logging import get_logger
 from src.ingestion.espn_events import EspnEventsPoller
-from src.ingestion.espn_scoreboard import EspnScoreboardPoller
+from src.ingestion.espn_scoreboard import EspnScoreboardPoller, is_final_status, is_live_status
 from src.ingestion.odds import OddsApiPoller
 from src.paper_trader.portfolio import Portfolio
 from src.paper_trader.simulator import PaperTradeSimulator
@@ -61,13 +61,9 @@ async def _scoreboard_loop(
                         espn_id = update.get("espn_id")
                         sport = update.get("sport")
                         status = update.get("status", "")
-                        if (
-                            espn_id
-                            and sport
-                            and status.lower() in ("in_progress", "status_in_progress")
-                        ):
+                        if espn_id and sport and is_live_status(status):
                             events_poller.watch_game(espn_id, sport)
-                        elif espn_id and status.lower() in ("final", "status_final", "post"):
+                        elif espn_id and is_final_status(status):
                             events_poller.unwatch_game(espn_id)
                     await db.commit()
             if updates:

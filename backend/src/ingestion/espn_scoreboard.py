@@ -19,6 +19,29 @@ SCOREBOARD_URLS: dict[str, str] = {
     Sport.UFC: "https://site.api.espn.com/apis/site/v2/sports/mma/ufc/scoreboard",
 }
 
+LIVE_STATUS_MARKERS = (
+    "in_progress",
+    "first_half",
+    "second_half",
+    "halftime",
+    "end_period",
+    "end_quarter",
+    "overtime",
+    "shootout",
+    "intermission",
+)
+FINAL_STATUS_MARKERS = ("final", "post")
+
+
+def is_live_status(status: str) -> bool:
+    normalized = status.lower()
+    return any(marker in normalized for marker in LIVE_STATUS_MARKERS)
+
+
+def is_final_status(status: str) -> bool:
+    normalized = status.lower()
+    return any(marker in normalized for marker in FINAL_STATUS_MARKERS)
+
 def _parse_game(event: dict, sport: str) -> dict[str, Any]:
     competition = event["competitions"][0]
     competitors = competition["competitors"]
@@ -87,9 +110,9 @@ class EspnScoreboardPoller:
                 prev = self._previous.get(espn_id)
                 status = parsed["status"].lower()
 
-                if status in {"in_progress", "status_in_progress"}:
+                if is_live_status(status):
                     has_live_game = True
-                elif status not in {"final", "status_final", "post"}:
+                elif not is_final_status(status):
                     has_upcoming_game = True
 
                 if prev and (
