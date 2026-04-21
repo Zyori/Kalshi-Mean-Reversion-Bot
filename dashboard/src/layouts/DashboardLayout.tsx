@@ -1,6 +1,7 @@
 import { NavLink, Outlet } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
+import { useAuth } from "../hooks/useAuth";
 
 const NAV_ITEMS = [
   { to: "/", label: "Markets" },
@@ -14,6 +15,7 @@ export function DashboardLayout() {
     queryFn: api.health,
     refetchInterval: 10_000,
   });
+  const { logout } = useAuth();
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -42,13 +44,22 @@ export function DashboardLayout() {
               ))}
             </nav>
           </div>
-          <div className="flex items-center gap-2 text-xs text-text-dim">
-            <span
-              className={`inline-block h-2 w-2 rounded-full ${
-                health?.status === "ok" ? "bg-profit" : "bg-loss"
-              }`}
-            />
-            {health?.status === "ok" ? "Connected" : "Disconnected"}
+          <div className="flex items-center gap-4 text-xs text-text-dim">
+            <div className="flex items-center gap-2">
+              <span
+                className={`inline-block h-2 w-2 rounded-full ${
+                  health?.status === "ok" ? "bg-profit" : "bg-loss"
+                }`}
+              />
+              {health?.status === "ok" ? "Connected" : "Disconnected"}
+            </div>
+            <button
+              type="button"
+              onClick={() => logout.mutate()}
+              className="rounded-md px-2 py-1 hover:bg-surface-2 hover:text-text"
+            >
+              Sign out
+            </button>
           </div>
         </div>
       </header>

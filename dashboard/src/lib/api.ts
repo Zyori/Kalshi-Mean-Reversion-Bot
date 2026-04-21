@@ -1,19 +1,40 @@
 const BASE = "/api";
 
-async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`);
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+export class ApiError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    credentials: "include",
+    ...init,
+  });
+  if (!res.ok) throw new ApiError(res.status, `${res.status} ${res.statusText}`);
   return res.json();
 }
 
+async function get<T>(path: string): Promise<T> {
+  return request<T>(path);
+}
+
+async function post<T>(path: string, body?: unknown): Promise<T> {
+  return request<T>(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+}
+
 async function patch<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+  return request<T>(path, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-  return res.json();
 }
 
 export interface HealthStatus {
@@ -117,7 +138,19 @@ export interface Insight {
   created_at: string;
 }
 
+export interface PublicStatus {
+  alive: boolean;
+  uptime_seconds: number;
+  sources_up: number;
+  sources_total: number;
+}
+
 export const api = {
+  login: (password: string) => post<{ ok: true }>("/auth/login", { password }),
+  logout: () => post<{ ok: true }>("/auth/logout"),
+  me: () => get<{ authed: true }>("/auth/me"),
+  publicStatus: () => get<PublicStatus>("/public/status"),
+  publicHeartbeat: () => get<{ ok: true; timestamp: number }>("/public/heartbeat"),
   health: () => get<HealthStatus>("/health"),
   games: (params?: { sport?: string; status?: string }) => {
     const qs = new URLSearchParams();

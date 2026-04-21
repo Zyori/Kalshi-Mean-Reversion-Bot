@@ -25,10 +25,20 @@ class Settings(BaseSettings):
     port: int = 8000
     log_level: str = "info"
 
+    env: str = "dev"
+    admin_password_hash: str = ""
+    session_secret: str = ""
+    session_max_age_days: int = 30
+    session_cookie_name: str = "lutz_session"
+
     @field_validator("kalshi_private_key_path")
     @classmethod
     def expand_key_path(cls, v: Path) -> Path:
         return v.expanduser()
+
+    @property
+    def is_prod(self) -> bool:
+        return self.env.lower() == "prod"
 
 
 settings = Settings()
