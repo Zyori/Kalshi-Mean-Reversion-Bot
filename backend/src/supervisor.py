@@ -100,6 +100,9 @@ async def _events_loop(
                         game = await get_game_by_espn_id(db, event["espn_id"])
                         if not game:
                             continue
+                        event["home_team"] = game.home_team
+                        event["away_team"] = game.away_team
+                        event["game_status"] = game.status
                         enriched = await attach_real_market_context(db, kalshi_rest, game, event)
                         if enriched is None:
                             enriched = await attach_synthetic_market_context(db, game, event)

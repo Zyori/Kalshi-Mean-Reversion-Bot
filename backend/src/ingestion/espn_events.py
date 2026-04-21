@@ -1,4 +1,5 @@
 import asyncio
+import re
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -64,7 +65,6 @@ SPORT_EVENT_MARKERS: dict[str, tuple[str, ...]] = {
         "injury",
         "review",
         "challenge",
-        "run",
     ),
     Sport.MLB: (
         "home run",
@@ -110,6 +110,8 @@ SPORT_EVENT_MARKERS: dict[str, tuple[str, ...]] = {
         "timeout",
     ),
 }
+
+SCORING_RUN_PATTERN = re.compile(r"\b\d{1,2}-\d{1,2}\s+run\b")
 
 
 def _event_context(data: dict[str, Any]) -> dict[str, Any]:
@@ -162,10 +164,11 @@ def _score_from_play(
 def _extract_events(plays: list[dict], sport: str, context: dict[str, Any]) -> list[dict[str, Any]]:
     events = []
     for play in plays:
-        event_type = play.get("type", {}).get("text", "")
+        raw_event_type = play.get("type", {}).get("text", "")
         description = play.get("text", "")
+        event_type = _normalize_event_type(raw_event_type, description, sport)
 
-        is_significant = _is_significant_event(event_type, description, sport)
+        is_significant = _is_significant_event(raw_event_type, description, sport)
         if not is_significant:
             continue
 
@@ -183,7 +186,12 @@ def _extract_events(plays: list[dict], sport: str, context: dict[str, Any]) -> l
                 "clock": play.get("clock", {}).get("displayValue", ""),
                 "detected_at": now.isoformat(),
                 "estimated_real_at": (now - latency).isoformat(),
-                "espn_data": {"play": play, "context": context},
+                "espn_data": {
+                    "play": play,
+                    "context": context,
+                    "raw_event_type": raw_event_type,
+                    "normalized_event_type": event_type,
+                },
             }
         )
     return events
@@ -196,9 +204,99 @@ def _is_significant_event(event_type: str, description: str, sport: str) -> bool
 
     if any(marker in search_text for marker in COMMON_EVENT_MARKERS):
         return True
+    if sport == Sport.NBA and SCORING_RUN_PATTERN.search(search_text):
+        return True
 
     sport_markers = SPORT_EVENT_MARKERS.get(sport, ())
     return any(marker in search_text for marker in sport_markers)
+
+
+def _normalize_event_type(event_type: str, description: str, sport: str) -> str:
+    raw = f"{event_type} {description}".lower()
+
+    if sport == Sport.NHL:
+        if "goal" in raw:
+            return "Goal"
+        if "penalty" in raw or "minor" in raw or "major" in raw:
+            return "Penalty"
+        if "power play" in raw:
+            return "Power Play"
+        if "empty net" in raw or "goalie pulled" in raw:
+            return "Goalie Change"
+        if "save" in raw or "stopped" in raw:
+            return "Save"
+
+    if sport == Sport.NBA:
+        if "technical" in raw:
+            return "Technical"
+        if "flagrant" in raw:
+            return "Flagrant"
+        if "ejection" in raw:
+            return "Ejection"
+        if "timeout" in raw:
+            return "Timeout"
+        if "turnover" in raw or "steal" in raw or "block" in raw:
+            return "Turnover"
+        if "review" in raw or "challenge" in raw:
+            return "Review"
+        if "injury" in raw:
+            return "Injury"
+        if "makes" in description.lower():
+            return "Score"
+        if "misses" in description.lower():
+            return "Missed Shot"
+
+    if sport == Sport.MLB:
+        if "home run" in raw:
+            return "Home Run"
+        if "pitching change" in raw:
+            return "Pitching Change"
+        if "mound visit" in raw:
+            return "Mound Visit"
+        if "error" in raw:
+            return "Error"
+
+    if sport == Sport.NFL:
+        if "touchdown" in raw:
+            return "Touchdown"
+        if "interception" in raw or "fumble" in raw or "turnover" in raw:
+            return "Turnover"
+        if "field goal" in raw:
+            return "Field Goal"
+        if "penalty" in raw:
+            return "Penalty"
+        if "timeout" in raw:
+            return "Timeout"
+        if "injury" in raw:
+            return "Injury"
+        if "review" in raw or "challenge" in raw:
+            return "Review"
+
+    if sport == Sport.SOCCER:
+        if "red card" in raw:
+            return "Red Card"
+        if "yellow card" in raw:
+            return "Yellow Card"
+        if "goal" in raw:
+            return "Goal"
+        if "penalty" in raw:
+            return "Penalty"
+        if "var" in raw or "review" in raw:
+            return "VAR Review"
+        if "substitution" in raw:
+            return "Substitution"
+
+    if sport == Sport.UFC:
+        if "knockdown" in raw:
+            return "Knockdown"
+        if "takedown" in raw:
+            return "Takedown"
+        if "submission" in raw:
+            return "Submission"
+        if "doctor" in raw or "injury" in raw:
+            return "Doctor Check"
+
+    return event_type
 
 
 class EspnEventsPoller:
