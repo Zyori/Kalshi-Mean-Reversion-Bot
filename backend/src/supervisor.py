@@ -9,6 +9,7 @@ from src.config import settings
 from src.core.logging import get_logger
 from src.ingestion.espn_events import EspnEventsPoller
 from src.ingestion.espn_scoreboard import EspnScoreboardPoller, is_final_status, is_live_status
+from src.ingestion.kalshi_rest import KalshiRestClient
 from src.ingestion.odds import OddsApiPoller
 from src.paper_trader.portfolio import Portfolio
 from src.paper_trader.simulator import PaperTradeSimulator
@@ -17,6 +18,7 @@ from src.services.ingestion_service import (
     record_opening_line,
     upsert_game_from_scoreboard,
 )
+from src.services.kalshi_market_service import attach_real_market_context
 from src.services.paper_runtime import (
     attach_synthetic_market_context,
     get_game_by_espn_id,
@@ -86,6 +88,7 @@ async def _events_loop(
     events_poller: EspnEventsPoller,
     detector: EventDetector,
     trade_queue: asyncio.Queue,
+    kalshi_rest: KalshiRestClient,
     session_factory: async_sessionmaker,
 ) -> None:
     while True:
@@ -97,7 +100,9 @@ async def _events_loop(
                         game = await get_game_by_espn_id(db, event["espn_id"])
                         if not game:
                             continue
-                        enriched = await attach_synthetic_market_context(db, game, event)
+                        enriched = await attach_real_market_context(db, kalshi_rest, game, event)
+                        if enriched is None:
+                            enriched = await attach_synthetic_market_context(db, game, event)
                         detected = await detector.process_event(enriched)
                         payload = detected or enriched
                         game_event = await record_game_event(db, payload)
@@ -174,6 +179,7 @@ async def run_supervisor(session_factory: async_sessionmaker) -> None:
     scoreboard = EspnScoreboardPoller(espn_queue)
     events_poller = EspnEventsPoller(espn_queue)
     odds = OddsApiPoller(espn_queue)
+    kalshi_rest = KalshiRestClient()
     detector = EventDetector(espn_queue, trade_queue)
     simulator = PaperTradeSimulator(Portfolio())
     accumulators = Accumulators()
@@ -190,7 +196,9 @@ async def run_supervisor(session_factory: async_sessionmaker) -> None:
     try:
         async with asyncio.TaskGroup() as tg:
             tg.create_task(_scoreboard_loop(scoreboard, events_poller, session_factory))
-            tg.create_task(_events_loop(events_poller, detector, trade_queue, session_factory))
+            tg.create_task(
+                _events_loop(events_poller, detector, trade_queue, kalshi_rest, session_factory)
+            )
             tg.create_task(_odds_loop(odds, detector, session_factory))
             tg.create_task(_trader_loop(trade_queue, simulator, accumulators, session_factory))
     except* Exception as eg:
@@ -200,4 +208,5 @@ async def run_supervisor(session_factory: async_sessionmaker) -> None:
         await scoreboard.close()
         await events_poller.close()
         await odds.close()
+        await kalshi_rest.close()
         logger.info("supervisor_shutdown")

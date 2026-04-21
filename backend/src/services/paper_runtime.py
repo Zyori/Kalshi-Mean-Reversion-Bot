@@ -94,7 +94,12 @@ async def attach_synthetic_market_context(
     yes_price = estimate_synthetic_home_price(game, event)
     event["market_id"] = market.id
     event["market_type"] = market.market_type
+    event["market_source"] = "synthetic"
     event["kalshi_price_at"] = yes_price
+    event["kalshi_yes_ask"] = yes_price
+    event["kalshi_no_ask"] = 100 - yes_price
+    event["kalshi_yes_ask_depth"] = 25
+    event["kalshi_no_ask_depth"] = 25
     event["fair_prob_yes"] = game.opening_line_home_prob or 0.5
     event["ask_depth"] = 25
 

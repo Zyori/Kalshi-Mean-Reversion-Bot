@@ -12,6 +12,13 @@ from src.core.types import KALSHI_URLS
 
 logger = get_logger(__name__)
 
+SPORT_SERIES_PREFIXES: dict[str, tuple[str, ...]] = {
+    "nba": ("KXNBAGAME",),
+    "nhl": ("KXNHLGAME",),
+    "mlb": ("KXMLBGAME",),
+    "soccer": ("KXPREMIERLEAGUE",),
+}
+
 
 class TokenBucket:
     def __init__(self, rate: float, capacity: int) -> None:
@@ -88,6 +95,61 @@ class KalshiRestClient:
         if cursor:
             params["cursor"] = cursor
         return await self._request("GET", "/markets", params=params)
+
+    async def get_events(
+        self,
+        *,
+        series_ticker: str,
+        limit: int = 200,
+        cursor: str | None = None,
+        with_nested_markets: bool = True,
+    ) -> dict:
+        params: dict[str, Any] = {
+            "series_ticker": series_ticker,
+            "limit": limit,
+            "with_nested_markets": str(with_nested_markets).lower(),
+        }
+        if cursor:
+            params["cursor"] = cursor
+        return await self._request("GET", "/events", params=params)
+
+    async def get_active_game_markets(self, sport: str) -> list[dict[str, Any]]:
+        series_list = SPORT_SERIES_PREFIXES.get(sport, ())
+        all_markets: list[dict[str, Any]] = []
+
+        for series in series_list:
+            cursor: str | None = None
+            while True:
+                data = await self.get_events(
+                    series_ticker=series,
+                    limit=200,
+                    cursor=cursor,
+                    with_nested_markets=True,
+                )
+                events = data.get("events", [])
+                for event in events:
+                    for market in event.get("markets") or []:
+                        if market.get("status") != "active":
+                            continue
+                        all_markets.append(
+                            {
+                                "series_ticker": series,
+                                "event_ticker": event.get("event_ticker"),
+                                "event_title": event.get("title"),
+                                "market_ticker": market.get("ticker"),
+                                "market_title": market.get("title"),
+                                "status": market.get("status"),
+                                "yes_sub_title": market.get("yes_sub_title"),
+                                "close_time": market.get("close_time"),
+                                "expiration_time": market.get("expiration_time"),
+                                "expected_expiration_time": market.get("expected_expiration_time"),
+                            }
+                        )
+                cursor = data.get("cursor")
+                if not cursor or len(events) < 200:
+                    break
+
+        return all_markets
 
     async def get_market(self, ticker: str) -> dict:
         return await self._request("GET", f"/markets/{ticker}")

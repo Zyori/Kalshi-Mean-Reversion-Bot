@@ -74,6 +74,26 @@ class TestPaperTradeSimulator:
         assert trade["side"] == "no"
         assert trade["entry_price"] == 30
 
+    def test_no_trade_uses_no_ask_and_no_depth(self, sim: PaperTradeSimulator):
+        trade = sim.evaluate_opportunity(
+            self._make_event(
+                kalshi_price_at=70,
+                fair_prob_yes=0.40,
+                kalshi_no_ask=32,
+                ask_depth=25,
+                kalshi_no_ask_depth=3,
+            )
+        )
+        assert trade is not None
+        assert trade["side"] == "no"
+        assert trade["entry_price"] == 32
+        assert trade["slippage_cents"] == calculate_slippage(32, ask_depth=3)
+
+    def test_trade_carries_market_source(self, sim: PaperTradeSimulator):
+        trade = sim.evaluate_opportunity(self._make_event(market_source="kalshi_demo"))
+        assert trade is not None
+        assert trade["market_source"] == "kalshi_demo"
+
     def test_portfolio_full_rejected(self):
         sim = PaperTradeSimulator(Portfolio(initial_bankroll_cents=50000, max_positions=1))
         sim.evaluate_opportunity(self._make_event())

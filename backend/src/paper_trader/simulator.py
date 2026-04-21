@@ -35,20 +35,28 @@ class PaperTradeSimulator:
         if confidence <= 0:
             return None
 
-        yes_price = event.get("kalshi_price_at")
-        if not yes_price or yes_price <= 0 or yes_price >= 100:
+        yes_market_price = event.get("kalshi_price_at")
+        if not yes_market_price or yes_market_price <= 0 or yes_market_price >= 100:
             return None
 
         fair_prob_yes = event.get("fair_prob_yes", event.get("baseline_prob", 0.5))
-        market_prob_yes = yes_price / 100.0
+        market_prob_yes = yes_market_price / 100.0
         side = "yes" if fair_prob_yes >= market_prob_yes else "no"
         contract_prob = fair_prob_yes if side == "yes" else 1.0 - fair_prob_yes
-        entry_price = yes_price if side == "yes" else 100 - yes_price
+        entry_price = (
+            event.get("kalshi_yes_ask", yes_market_price)
+            if side == "yes"
+            else event.get("kalshi_no_ask", 100 - yes_market_price)
+        )
+        ask_depth = (
+            event.get("kalshi_yes_ask_depth", event.get("ask_depth"))
+            if side == "yes"
+            else event.get("kalshi_no_ask_depth", event.get("ask_depth"))
+        )
 
         if contract_prob <= 0 or contract_prob >= 1:
             return None
 
-        ask_depth = event.get("ask_depth")
         slippage = calculate_slippage(entry_price, ask_depth)
         entry_adj = min(99, entry_price + slippage)
 
@@ -85,8 +93,9 @@ class PaperTradeSimulator:
             "status": "open",
             "game_event_id": event.get("game_event_id"),
             "market_id": event.get("market_id"),
+            "market_source": event.get("market_source"),
             "fair_prob_yes": fair_prob_yes,
-            "yes_price_at_entry": yes_price,
+            "yes_price_at_entry": yes_market_price,
             "game_context": event,
         }
 
