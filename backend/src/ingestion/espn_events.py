@@ -30,7 +30,101 @@ LATENCY_ESTIMATES: dict[str, timedelta] = {
     Sport.UFC: timedelta(seconds=15),
 }
 
-def _extract_events(plays: list[dict], sport: str) -> list[dict[str, Any]]:
+
+COMMON_EVENT_MARKERS = (
+    "injury",
+    "timeout",
+    "review",
+    "challenged",
+    "challenge",
+    "ejection",
+    "controvers",
+    "delay",
+    "weather",
+    "official",
+)
+
+SPORT_EVENT_MARKERS: dict[str, tuple[str, ...]] = {
+    Sport.NHL: (
+        "goal",
+        "penalty",
+        "power play",
+        "shorthanded",
+        "empty net",
+        "goalie pulled",
+        "goalie change",
+        "injured",
+    ),
+    Sport.NBA: (
+        "technical",
+        "flagrant",
+        "ejection",
+        "timeout",
+        "foul trouble",
+        "injury",
+        "review",
+        "challenge",
+        "run",
+    ),
+    Sport.MLB: (
+        "home run",
+        "pitching change",
+        "mound visit",
+        "injury",
+        "ejection",
+        "review",
+        "error",
+    ),
+    Sport.NFL: (
+        "touchdown",
+        "turnover",
+        "interception",
+        "fumble",
+        "penalty",
+        "sack",
+        "timeout",
+        "injury",
+        "challenge",
+        "review",
+        "two-point",
+        "field goal",
+    ),
+    Sport.SOCCER: (
+        "goal",
+        "red card",
+        "yellow card",
+        "penalty",
+        "substitution",
+        "var",
+        "injury",
+        "stoppage",
+        "own goal",
+    ),
+    Sport.UFC: (
+        "knockdown",
+        "takedown",
+        "submission",
+        "doctor",
+        "injury",
+        "point deduction",
+        "timeout",
+    ),
+}
+
+
+def _event_context(data: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "header": data.get("header"),
+        "boxscore": data.get("boxscore"),
+        "leaders": data.get("leaders"),
+        "injuries": data.get("injuries"),
+        "predictor": data.get("predictor"),
+        "winprobability": data.get("winprobability"),
+        "broadcasts": data.get("broadcasts"),
+    }
+
+
+def _extract_events(plays: list[dict], sport: str, context: dict[str, Any]) -> list[dict[str, Any]]:
     events = []
     for play in plays:
         event_type = play.get("type", {}).get("text", "")
@@ -51,7 +145,7 @@ def _extract_events(plays: list[dict], sport: str) -> list[dict[str, Any]]:
                 "clock": play.get("clock", {}).get("displayValue", ""),
                 "detected_at": now.isoformat(),
                 "estimated_real_at": (now - latency).isoformat(),
-                "espn_data": play,
+                "espn_data": {"play": play, "context": context},
             }
         )
     return events
@@ -60,58 +154,13 @@ def _extract_events(plays: list[dict], sport: str) -> list[dict[str, Any]]:
 def _is_significant_event(event_type: str, description: str, sport: str) -> bool:
     et_lower = event_type.lower()
     desc_lower = description.lower()
+    search_text = f"{et_lower} {desc_lower}"
 
-    if sport == Sport.NHL:
-        return any(
-            k in et_lower or k in desc_lower
-            for k in (
-                "goal",
-                "penalty",
-                "power play",
-                "shorthanded",
-            )
-        )
-    if sport == Sport.NBA:
-        return any(
-            k in et_lower or k in desc_lower
-            for k in (
-                "technical",
-                "flagrant",
-                "ejection",
-            )
-        )
-    if sport == Sport.MLB:
-        return any(
-            k in et_lower or k in desc_lower
-            for k in (
-                "home run",
-                "pitching change",
-                "injury",
-            )
-        )
-    if sport == Sport.NFL:
-        return any(
-            k in et_lower or k in desc_lower
-            for k in (
-                "touchdown",
-                "turnover",
-                "interception",
-                "fumble",
-                "penalty",
-            )
-        )
-    if sport == Sport.SOCCER:
-        return any(
-            k in et_lower or k in desc_lower
-            for k in (
-                "goal",
-                "red card",
-                "yellow card",
-                "penalty",
-                "substitution",
-            )
-        )
-    return False
+    if any(marker in search_text for marker in COMMON_EVENT_MARKERS):
+        return True
+
+    sport_markers = SPORT_EVENT_MARKERS.get(sport, ())
+    return any(marker in search_text for marker in sport_markers)
 
 
 class EspnEventsPoller:
@@ -156,7 +205,7 @@ class EspnEventsPoller:
         if isinstance(plays_data, dict):
             plays_data = plays_data.get("allPlays", []) or plays_data.get("items", [])
 
-        all_events = _extract_events(plays_data, sport)
+        all_events = _extract_events(plays_data, sport, _event_context(data))
         seen = self._seen_plays.get(espn_id, set())
         new_events = []
         for ev in all_events:

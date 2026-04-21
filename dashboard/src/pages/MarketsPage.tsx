@@ -1,10 +1,15 @@
 import { useState } from "react";
-import { useGames } from "../hooks/useMarkets";
+import { useGames, useRecentEvents } from "../hooks/useMarkets";
 import { useActiveTrades } from "../hooks/useTrades";
 import { Card } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
 import { Skeleton } from "../components/ui/Skeleton";
-import { formatDate, formatPercent, statusBadgeClass } from "../lib/utils";
+import {
+  formatDate,
+  formatPercent,
+  formatRelative,
+  statusBadgeClass,
+} from "../lib/utils";
 
 const SPORTS = ["all", "nhl", "nba", "mlb", "nfl", "soccer", "ufc"] as const;
 
@@ -13,7 +18,15 @@ export function MarketsPage() {
   const { data: games, isLoading } = useGames(
     sport === "all" ? undefined : sport,
   );
+  const { data: recentEvents, isLoading: loadingEvents } = useRecentEvents({
+    sport: sport === "all" ? undefined : sport,
+    limit: 20,
+  });
   const { data: activeTrades } = useActiveTrades();
+  const sortedRecentEvents = [...(recentEvents ?? [])].sort(
+    (a, b) =>
+      new Date(b.detected_at).getTime() - new Date(a.detected_at).getTime(),
+  );
 
   return (
     <div className="space-y-6">
@@ -64,6 +77,57 @@ export function MarketsPage() {
           </div>
         </Card>
       )}
+
+      <Card>
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-sm font-medium text-text-dim">Recent Key Events</h3>
+          <span className="text-xs text-text-dim">Newest first</span>
+        </div>
+        {loadingEvents ? (
+          <div className="space-y-2">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} className="h-16" />
+            ))}
+          </div>
+        ) : sortedRecentEvents.length === 0 ? (
+          <p className="py-6 text-center text-sm text-text-dim">
+            No key events captured yet
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {sortedRecentEvents.map((event) => (
+              <div
+                key={event.id}
+                className="rounded-md bg-surface-2 px-3 py-2"
+              >
+                <div className="mb-1 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-surface-3 text-text-dim uppercase text-[10px]">
+                      key event
+                    </Badge>
+                    <span className="text-sm font-medium">{event.event_type}</span>
+                  </div>
+                  <span className="text-xs text-text-dim">
+                    {formatRelative(event.detected_at)}
+                  </span>
+                </div>
+                {event.description && (
+                  <p className="text-sm text-text">
+                    {event.description}
+                  </p>
+                )}
+                <div className="mt-1 flex items-center justify-between text-xs text-text-dim">
+                  <span>
+                    {event.period ? `P${event.period}` : "--"}
+                    {event.clock ? ` • ${event.clock}` : ""}
+                  </span>
+                  <span>{formatDate(event.detected_at)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
 
       {isLoading ? (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

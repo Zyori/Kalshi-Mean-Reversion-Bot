@@ -29,3 +29,18 @@ export function useGameEvents(gameId: number) {
     placeholderData: keepPreviousData,
   });
 }
+
+export function useRecentEvents(params?: {
+  sport?: string;
+  event_type?: string;
+  classification?: string;
+  limit?: number;
+}) {
+  return useQuery({
+    queryKey: ["events", params],
+    queryFn: () => api.events(params),
+    refetchInterval: 10_000,
+    staleTime: 8_000,
+    placeholderData: keepPreviousData,
+  });
+}

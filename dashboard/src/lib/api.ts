@@ -59,6 +59,7 @@ export interface GameEvent {
   id: number;
   game_id: number;
   event_type: string;
+  description: string | null;
   home_score: number | null;
   away_score: number | null;
   period: string | null;
@@ -161,6 +162,20 @@ export const api = {
   },
   game: (id: number) => get<Game>(`/games/${id}`),
   gameEvents: (id: number) => get<GameEvent[]>(`/games/${id}/events`),
+  events: (params?: {
+    sport?: string;
+    event_type?: string;
+    classification?: string;
+    limit?: number;
+  }) => {
+    const qs = new URLSearchParams();
+    if (params?.sport) qs.set("sport", params.sport);
+    if (params?.event_type) qs.set("event_type", params.event_type);
+    if (params?.classification) qs.set("classification", params.classification);
+    if (params?.limit) qs.set("limit", String(params.limit));
+    const q = qs.toString();
+    return get<GameEvent[]>(`/events${q ? `?${q}` : ""}`);
+  },
   trades: (params?: {
     sport?: string;
     status?: string;
