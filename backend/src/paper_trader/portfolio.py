@@ -1,3 +1,4 @@
+from src.config import settings
 from src.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -6,7 +7,7 @@ logger = get_logger(__name__)
 class Portfolio:
     def __init__(
         self,
-        initial_bankroll_cents: int = 50000,
+        initial_bankroll_cents: int = settings.paper_bankroll_start_cents,
         max_positions: int = 15,
     ) -> None:
         self.bankroll_cents = initial_bankroll_cents

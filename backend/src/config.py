@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     odds_poll_interval_s: float = 43200.0
     events_poll_interval_s: float = 15.0
     kalshi_market_cache_ttl_s: float = 300.0
+    paper_bankroll_start_cents: int = 100000
 
     @field_validator("kalshi_private_key_path")
     @classmethod

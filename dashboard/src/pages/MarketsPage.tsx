@@ -6,6 +6,7 @@ import { Badge } from "../components/ui/Badge";
 import { Skeleton } from "../components/ui/Skeleton";
 import {
   formatDate,
+  formatCents,
   formatPercent,
   formatRelative,
   statusBadgeClass,
@@ -64,10 +65,11 @@ export function MarketsPage() {
                   <Badge className="bg-accent/20 text-accent-light uppercase">
                     {t.sport}
                   </Badge>
-                  <span className="font-mono tabular-nums">
-                    {t.entry_price}c
-                  </span>
-                  <span className="text-text-dim">{t.side}</span>
+                  <span className="text-sm">{t.selected_team ?? t.side}</span>
+                  <span className="font-mono tabular-nums">{t.entry_price}c</span>
+                  {t.matchup && (
+                    <span className="text-text-dim">{t.matchup}</span>
+                  )}
                 </div>
                 <span className="text-xs text-text-dim">
                   {formatDate(t.entered_at)}
@@ -103,7 +105,7 @@ export function MarketsPage() {
                 <div className="mb-1 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <Badge className="bg-surface-3 text-text-dim uppercase text-[10px]">
-                      key event
+                      {event.sport ?? "event"}
                     </Badge>
                     <span className="text-sm font-medium">{event.event_type}</span>
                   </div>
@@ -116,6 +118,26 @@ export function MarketsPage() {
                     {event.description}
                   </p>
                 )}
+                <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-text-dim">
+                  {event.home_team && event.away_team && (
+                    <span>
+                      {event.away_team} @ {event.home_team}
+                    </span>
+                  )}
+                  <span>
+                    Score {event.away_score ?? "-"}-{event.home_score ?? "-"}
+                  </span>
+                  {event.classification && <span>{event.classification}</span>}
+                  {event.kalshi_price_at != null && (
+                    <span>Kalshi {formatCents(event.kalshi_price_at)}</span>
+                  )}
+                  {event.baseline_prob != null && (
+                    <span>Base {formatPercent(event.baseline_prob)}</span>
+                  )}
+                  {event.deviation != null && (
+                    <span>Dev {formatPercent(event.deviation)}</span>
+                  )}
+                </div>
                 <div className="mt-1 flex items-center justify-between text-xs text-text-dim">
                   <span>
                     {event.period ? `P${event.period}` : "--"}

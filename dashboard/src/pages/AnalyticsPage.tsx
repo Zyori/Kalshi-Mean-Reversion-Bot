@@ -12,7 +12,7 @@ import { Skeleton } from "../components/ui/Skeleton";
 import { EquityCurve } from "../components/charts/EquityCurve";
 import { KellyComparison } from "../components/charts/KellyComparison";
 import { SportBreakdownChart } from "../components/charts/SportBreakdownChart";
-import { formatPnl, formatPercent, formatDate, pnlColor } from "../lib/utils";
+import { formatCents, formatPnl, formatPercent, formatDate, pnlColor } from "../lib/utils";
 
 function InsightTypeBadge({ type }: { type: string }) {
   const styles: Record<string, string> = {
@@ -72,11 +72,17 @@ export function AnalyticsPage() {
             label="Total PnL"
             value={formatPnl(summary.total_pnl_cents)}
             className={pnlColor(summary.total_pnl_cents)}
+            subtext={`Bank ${formatPnl(summary.current_bankroll_cents - summary.starting_bankroll_cents)} vs start`}
           />
           <StatCard
             label="Resolved"
             value={String(summary.resolved)}
             subtext={`${summary.total_trades - summary.resolved} pending`}
+          />
+          <StatCard
+            label="Mock Bank"
+            value={formatCents(summary.current_bankroll_cents)}
+            subtext={`Avail ${formatCents(summary.available_bankroll_cents)} / Held ${formatCents(summary.pending_wagers_cents)}`}
           />
         </div>
       )}

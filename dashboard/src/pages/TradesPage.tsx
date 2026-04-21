@@ -8,7 +8,9 @@ import {
   type SortingState,
 } from "@tanstack/react-table";
 import { useTrades } from "../hooks/useTrades";
+import { useAnalysisSummary } from "../hooks/useAnalytics";
 import { Badge } from "../components/ui/Badge";
+import { Card } from "../components/ui/Card";
 import { Skeleton } from "../components/ui/Skeleton";
 import {
   formatCents,
@@ -23,6 +25,24 @@ import type { Trade } from "../lib/api";
 const col = createColumnHelper<Trade>();
 
 const columns = [
+  col.accessor("matchup", {
+    header: "Matchup",
+    cell: (info) => (
+      <div className="min-w-44">
+        <span className="block text-sm font-medium">
+          {info.getValue() ?? "--"}
+        </span>
+      </div>
+    ),
+  }),
+  col.accessor("selected_team", {
+    header: "Team",
+    cell: (info) => (
+      <div className="min-w-32">
+        <span className="block text-sm">{info.getValue() ?? "--"}</span>
+      </div>
+    ),
+  }),
   col.accessor("entered_at", {
     header: "Time",
     cell: (info) => (
@@ -75,6 +95,14 @@ const columns = [
       </span>
     ),
   }),
+  col.accessor("kelly_size_cents", {
+    header: () => <span className="text-right w-full block">Wager</span>,
+    cell: (info) => (
+      <span className="font-mono tabular-nums text-right block">
+        {formatCents(info.getValue())}
+      </span>
+    ),
+  }),
   col.accessor("pnl_cents", {
     header: () => <span className="text-right w-full block">PnL</span>,
     cell: (info) => (
@@ -82,6 +110,14 @@ const columns = [
         className={`font-mono tabular-nums text-right block font-medium ${pnlColor(info.getValue())}`}
       >
         {formatPnl(info.getValue())}
+      </span>
+    ),
+  }),
+  col.accessor("reasoning", {
+    header: "Logic",
+    cell: (info) => (
+      <span className="block max-w-md text-xs leading-5 text-text-dim">
+        {info.getValue() ?? "--"}
       </span>
     ),
   }),
@@ -100,6 +136,7 @@ export function TradesPage() {
     { id: "entered_at", desc: true },
   ]);
   const { data: trades, isLoading, dataUpdatedAt } = useTrades({ limit: 100 });
+  const { data: summary } = useAnalysisSummary();
 
   const table = useReactTable({
     data: useMemo(() => trades ?? [], [trades]),
@@ -130,6 +167,48 @@ export function TradesPage() {
           </span>
         )}
       </div>
+
+      {summary && (
+        <div className="grid gap-3 md:grid-cols-4">
+          <Card className="space-y-1">
+            <p className="text-xs uppercase tracking-wide text-text-dim">
+              Mock Bank
+            </p>
+            <p className="font-mono text-lg">
+              {formatCents(summary.current_bankroll_cents)}
+            </p>
+            <p className="text-xs text-text-dim">
+              Started {formatCents(summary.starting_bankroll_cents)}
+            </p>
+          </Card>
+          <Card className="space-y-1">
+            <p className="text-xs uppercase tracking-wide text-text-dim">
+              Available
+            </p>
+            <p className="font-mono text-lg">
+              {formatCents(summary.available_bankroll_cents)}
+            </p>
+            <p className="text-xs text-text-dim">
+              Open exposure {formatCents(summary.pending_wagers_cents)}
+            </p>
+          </Card>
+          <Card className="space-y-1">
+            <p className="text-xs uppercase tracking-wide text-text-dim">
+              Realized PnL
+            </p>
+            <p className={`font-mono text-lg ${pnlColor(summary.total_pnl_cents)}`}>
+              {formatPnl(summary.total_pnl_cents)}
+            </p>
+          </Card>
+          <Card className="space-y-1">
+            <p className="text-xs uppercase tracking-wide text-text-dim">
+              Trade Count
+            </p>
+            <p className="font-mono text-lg">{summary.total_trades}</p>
+            <p className="text-xs text-text-dim">{summary.open} open</p>
+          </Card>
+        </div>
+      )}
 
       <div className="overflow-x-auto rounded-lg border border-border">
         <table className="w-full text-sm">

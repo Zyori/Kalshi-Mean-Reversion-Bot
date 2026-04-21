@@ -53,11 +53,20 @@ export interface Game {
   status: string;
   opening_line_home_prob: number | null;
   opening_line_source: string | null;
+  latest_home_score: number | null;
+  latest_away_score: number | null;
+  final_home_score: number | null;
+  final_away_score: number | null;
+  created_at: string | null;
 }
 
 export interface GameEvent {
   id: number;
   game_id: number;
+  sport: string | null;
+  home_team: string | null;
+  away_team: string | null;
+  game_status: string | null;
   event_type: string;
   description: string | null;
   home_score: number | null;
@@ -70,6 +79,8 @@ export interface GameEvent {
   kalshi_price_at: number | null;
   baseline_prob: number | null;
   deviation: number | null;
+  estimated_real_at: string | null;
+  espn_data: Record<string, unknown> | null;
 }
 
 export interface Trade {
@@ -78,21 +89,28 @@ export interface Trade {
   market_id: number | null;
   sport: string;
   side: string;
+  matchup: string | null;
+  selected_team: string | null;
+  opposing_team: string | null;
   entry_price: number;
   entry_price_adj: number;
   slippage_cents: number;
   confidence_score: number;
   kelly_fraction: number;
   kelly_size_cents: number;
+  flat_size_cents: number | null;
   exit_price: number | null;
   pnl_cents: number | null;
   pnl_kelly_cents: number | null;
   status: string;
   entered_at: string;
   resolved_at: string | null;
+  resolution: string | null;
   game_context: Record<string, unknown> | null;
-  reasoning: Record<string, unknown> | null;
+  reasoning: string | null;
   skip_reason: string | null;
+  trigger_event: GameEvent | null;
+  game: Game | null;
 }
 
 export interface AnalysisSummary {
@@ -103,6 +121,10 @@ export interface AnalysisSummary {
   losses: number;
   win_rate: number;
   total_pnl_cents: number;
+  starting_bankroll_cents: number;
+  current_bankroll_cents: number;
+  available_bankroll_cents: number;
+  pending_wagers_cents: number;
 }
 
 export interface SportBreakdown {

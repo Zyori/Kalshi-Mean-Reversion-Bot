@@ -3,6 +3,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import get_db
+from src.config import settings
 from src.models.analysis import Insight
 from src.models.trade import PaperTrade
 
@@ -19,12 +20,18 @@ async def analysis_summary(db: AsyncSession = Depends(get_db)):
         select(func.count(PaperTrade.id)).where(PaperTrade.status == "resolved_loss")
     )
     total_pnl = await db.scalar(select(func.sum(PaperTrade.pnl_cents))) or 0
+    pending_wagers = await db.scalar(
+        select(func.sum(PaperTrade.kelly_size_cents)).where(PaperTrade.status == "open")
+    ) or 0
     open_count = await db.scalar(
         select(func.count(PaperTrade.id)).where(PaperTrade.status == "open")
     )
 
     resolved = (wins or 0) + (losses or 0)
     win_rate = (wins or 0) / resolved if resolved > 0 else 0.0
+    starting_bankroll = settings.paper_bankroll_start_cents
+    current_bankroll = starting_bankroll + total_pnl
+    available_bankroll = current_bankroll - pending_wagers
 
     return {
         "total_trades": total or 0,
@@ -34,6 +41,10 @@ async def analysis_summary(db: AsyncSession = Depends(get_db)):
         "losses": losses or 0,
         "win_rate": round(win_rate, 4),
         "total_pnl_cents": total_pnl,
+        "starting_bankroll_cents": starting_bankroll,
+        "current_bankroll_cents": current_bankroll,
+        "available_bankroll_cents": available_bankroll,
+        "pending_wagers_cents": pending_wagers,
     }
 
 

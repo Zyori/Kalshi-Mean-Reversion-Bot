@@ -17,6 +17,32 @@ def calculate_slippage(entry_price_cents: int, ask_depth: int | None = None) -> 
     return base
 
 
+def _build_reasoning(
+    *,
+    event: dict[str, Any],
+    side: str,
+    fair_prob_yes: float,
+    market_prob_yes: float,
+    entry_price: int,
+    size_cents: int,
+) -> str:
+    event_type = event.get("event_type") or "event"
+    classification = event.get("classification") or "unclassified"
+    market_source = event.get("market_source") or "unknown"
+    home_team = event.get("home_team")
+    away_team = event.get("away_team")
+    selected_team = home_team if side == "yes" else away_team
+    deviation = event.get("deviation")
+    deviation_text = f"{deviation:.3f}" if isinstance(deviation, (int, float)) else "n/a"
+    return (
+        f"Mean reversion {side.upper()} off {classification}: "
+        f"team={selected_team or 'unknown'}, "
+        f"fair_yes={fair_prob_yes:.3f}, market_yes={market_prob_yes:.3f}, "
+        f"deviation={deviation_text}, event={event_type}, source={market_source}, "
+        f"entry={entry_price}c, wager={size_cents}c"
+    )
+
+
 class PaperTradeSimulator:
     def __init__(
         self,
@@ -97,6 +123,14 @@ class PaperTradeSimulator:
             "fair_prob_yes": fair_prob_yes,
             "yes_price_at_entry": yes_market_price,
             "game_context": event,
+            "reasoning": _build_reasoning(
+                event=event,
+                side=side,
+                fair_prob_yes=fair_prob_yes,
+                market_prob_yes=market_prob_yes,
+                entry_price=entry_price,
+                size_cents=size,
+            ),
         }
 
         self.portfolio.open_position(self._trade_counter, size)
