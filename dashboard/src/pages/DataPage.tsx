@@ -7,6 +7,8 @@ import {
   formatDate,
   formatPercent,
   formatRelative,
+  isFinalStatus,
+  sortGamesByPriority,
   statusBadgeClass,
 } from "../lib/utils";
 
@@ -14,7 +16,10 @@ const SPORTS = ["all", "nhl", "nba", "mlb", "nfl", "soccer", "ufc"] as const;
 
 export function DataPage() {
   const [sport, setSport] = useState<string>("all");
-  const { data: games, isLoading } = useGames(sport === "all" ? undefined : sport);
+  const { data: games, isLoading } = useGames({
+    sport: sport === "all" ? undefined : sport,
+    days_ahead: 7,
+  });
   const [selectedGameId, setSelectedGameId] = useState<number | null>(null);
 
   useEffect(() => {
@@ -30,7 +35,14 @@ export function DataPage() {
   const { data: selectedGame, isLoading: loadingGame } = useGame(selectedGameId ?? 0);
 
   const collectedGames = useMemo(
-    () => (games ?? []).filter((game) => game.opening_line_home_prob != null || game.espn_id),
+    () =>
+      sortGamesByPriority(
+        (games ?? []).filter(
+          (game) =>
+            !isFinalStatus(game.status) &&
+            (game.opening_line_home_prob != null || game.espn_id),
+        ),
+      ),
     [games],
   );
 

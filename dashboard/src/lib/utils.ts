@@ -42,6 +42,27 @@ export function formatRelative(iso: string | null | undefined): string {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
+export function isLiveStatus(status: string | null | undefined): boolean {
+  const normalized = String(status ?? "").toLowerCase();
+  return normalized.includes("in_progress") || normalized.includes("end_period") || normalized === "live";
+}
+
+export function isFinalStatus(status: string | null | undefined): boolean {
+  const normalized = String(status ?? "").toLowerCase();
+  return normalized.includes("final") || normalized.includes("full_time") || normalized === "post";
+}
+
+export function sortGamesByPriority<T extends { start_time: string; status: string }>(
+  games: T[],
+): T[] {
+  return [...games].sort((a, b) => {
+    const aLive = isLiveStatus(a.status) ? 0 : 1;
+    const bLive = isLiveStatus(b.status) ? 0 : 1;
+    if (aLive !== bLive) return aLive - bLive;
+    return new Date(a.start_time).getTime() - new Date(b.start_time).getTime();
+  });
+}
+
 export function pnlColor(cents: number | null | undefined): string {
   if (cents == null || cents === 0) return "text-zinc-400";
   return cents > 0 ? "text-profit" : "text-loss";

@@ -1,10 +1,14 @@
-import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
 
-export function useGames(sport?: string) {
+export function useGames(params?: {
+  sport?: string;
+  status?: string;
+  days_ahead?: number;
+}) {
   return useQuery({
-    queryKey: ["games", sport],
-    queryFn: () => api.games({ sport }),
+    queryKey: ["games", params],
+    queryFn: () => api.games(params),
     refetchInterval: 10_000,
     staleTime: 8_000,
     placeholderData: keepPreviousData,

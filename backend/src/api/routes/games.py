@@ -1,5 +1,7 @@
+from datetime import UTC, datetime, timedelta
+
 from fastapi import APIRouter, Depends
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -14,14 +16,27 @@ router = APIRouter(prefix="/api")
 async def list_games(
     sport: str | None = None,
     status: str | None = None,
+    days_ahead: int | None = None,
     limit: int = 50,
     db: AsyncSession = Depends(get_db),
 ):
-    stmt = select(Game).order_by(Game.start_time.desc()).limit(limit)
+    stmt = select(Game)
     if sport:
         stmt = stmt.where(Game.sport == sport)
     if status:
         stmt = stmt.where(Game.status == status)
+    if days_ahead is not None:
+        now = datetime.now(UTC)
+        window_end = now + timedelta(days=days_ahead)
+        window_start = now - timedelta(hours=12)
+        live_like = Game.status.in_(["STATUS_IN_PROGRESS", "STATUS_END_PERIOD", "live"])
+        stmt = stmt.where(
+            or_(
+                live_like,
+                and_(Game.start_time >= window_start, Game.start_time <= window_end),
+            )
+        )
+    stmt = stmt.order_by(Game.start_time.asc()).limit(limit)
     result = await db.execute(stmt)
     return [serialize_game(game) for game in result.scalars().all()]
 

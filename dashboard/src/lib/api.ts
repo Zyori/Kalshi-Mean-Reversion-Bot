@@ -188,10 +188,11 @@ export const api = {
   publicStatus: () => get<PublicStatus>("/public/status"),
   publicHeartbeat: () => get<{ ok: true; timestamp: number }>("/public/heartbeat"),
   health: () => get<HealthStatus>("/health"),
-  games: (params?: { sport?: string; status?: string }) => {
+  games: (params?: { sport?: string; status?: string; days_ahead?: number }) => {
     const qs = new URLSearchParams();
     if (params?.sport) qs.set("sport", params.sport);
     if (params?.status) qs.set("status", params.status);
+    if (params?.days_ahead != null) qs.set("days_ahead", String(params.days_ahead));
     const q = qs.toString();
     return get<Game[]>(`/games${q ? `?${q}` : ""}`);
   },
