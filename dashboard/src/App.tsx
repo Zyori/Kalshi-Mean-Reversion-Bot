@@ -22,9 +22,9 @@ function isPublicHost(): boolean {
   const params = new URLSearchParams(window.location.search);
   if (params.get("view") === "public") return true;
   if (params.get("view") === "admin") return false;
-  const host = window.location.hostname;
-  // Admin on mrb.* subdomain; everything else (lutz.bot, www.lutz.bot) is public.
-  return !host.startsWith("mrb.");
+  // Single-domain for now: admin lives at lutz.bot; public summary ships
+  // when mrb.lutz.bot is split off (then flip this to the mrb.* check).
+  return false;
 }
 
 function ProtectedRoutes() {
