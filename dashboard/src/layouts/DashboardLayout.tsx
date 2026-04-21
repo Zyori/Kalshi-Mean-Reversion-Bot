@@ -5,6 +5,7 @@ import { useAuth } from "../hooks/useAuth";
 
 const NAV_ITEMS = [
   { to: "/", label: "Markets" },
+  { to: "/data", label: "Data" },
   { to: "/trades", label: "Trades" },
   { to: "/analytics", label: "Analytics" },
 ] as const;

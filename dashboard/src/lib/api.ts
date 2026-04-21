@@ -60,6 +60,19 @@ export interface Game {
   created_at: string | null;
 }
 
+export interface OpeningLine {
+  id: number;
+  source: string;
+  home_prob: number;
+  away_prob: number;
+  captured_at: string | null;
+}
+
+export interface GameDetail extends Game {
+  events: GameEvent[];
+  opening_lines: OpeningLine[];
+}
+
 export interface GameEvent {
   id: number;
   game_id: number;
@@ -182,7 +195,7 @@ export const api = {
     const q = qs.toString();
     return get<Game[]>(`/games${q ? `?${q}` : ""}`);
   },
-  game: (id: number) => get<Game>(`/games/${id}`),
+  game: (id: number) => get<GameDetail>(`/games/${id}`),
   gameEvents: (id: number) => get<GameEvent[]>(`/games/${id}/events`),
   events: (params?: {
     sport?: string;

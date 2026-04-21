@@ -15,6 +15,7 @@ export function useGame(id: number) {
   return useQuery({
     queryKey: ["games", id],
     queryFn: () => api.game(id),
+    enabled: id > 0,
     refetchInterval: 10_000,
     staleTime: 8_000,
   });

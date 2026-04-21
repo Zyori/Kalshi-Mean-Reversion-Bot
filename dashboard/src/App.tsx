@@ -4,6 +4,7 @@ import { DashboardLayout } from "./layouts/DashboardLayout";
 import { MarketsPage } from "./pages/MarketsPage";
 import { TradesPage } from "./pages/TradesPage";
 import { AnalyticsPage } from "./pages/AnalyticsPage";
+import { DataPage } from "./pages/DataPage";
 import { LoginPage } from "./pages/LoginPage";
 import { PublicStatusPage } from "./pages/PublicStatusPage";
 import { useAuth } from "./hooks/useAuth";
@@ -35,6 +36,7 @@ function ProtectedRoutes() {
     <Routes>
       <Route element={<DashboardLayout />}>
         <Route index element={<MarketsPage />} />
+        <Route path="data" element={<DataPage />} />
         <Route path="trades" element={<TradesPage />} />
         <Route path="analytics" element={<AnalyticsPage />} />
       </Route>
