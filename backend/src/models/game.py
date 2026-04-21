@@ -23,6 +23,10 @@ class Game(Base):
     status: Mapped[str] = mapped_column(String(20), default="scheduled")
     opening_line_home_prob: Mapped[float | None] = mapped_column()
     opening_line_source: Mapped[str | None] = mapped_column(String(50))
+    latest_home_score: Mapped[int | None] = mapped_column(Integer)
+    latest_away_score: Mapped[int | None] = mapped_column(Integer)
+    final_home_score: Mapped[int | None] = mapped_column(Integer)
+    final_away_score: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     events: Mapped[list["GameEvent"]] = relationship(back_populates="game")

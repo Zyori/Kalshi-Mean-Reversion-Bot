@@ -17,6 +17,12 @@ from src.services.ingestion_service import (
     record_opening_line,
     upsert_game_from_scoreboard,
 )
+from src.services.paper_runtime import (
+    attach_synthetic_market_context,
+    get_game_by_espn_id,
+    persist_trade,
+    resolve_game_trades,
+)
 from src.strategy.detector import EventDetector
 
 logger = get_logger(__name__)
@@ -65,6 +71,9 @@ async def _scoreboard_loop(
                             events_poller.watch_game(espn_id, sport)
                         elif espn_id and is_final_status(status):
                             events_poller.unwatch_game(espn_id)
+                            game = await get_game_by_espn_id(db, espn_id)
+                            if game and registry.simulator:
+                                await resolve_game_trades(db, registry.simulator, game)
                     await db.commit()
             if updates:
                 logger.info("scoreboard_updates", count=len(updates))
@@ -85,11 +94,16 @@ async def _events_loop(
             if new_events:
                 async with session_factory() as db:
                     for event in new_events:
-                        detected = await detector.process_event(event)
-                        payload = detected or event
-                        await record_game_event(db, payload)
+                        game = await get_game_by_espn_id(db, event["espn_id"])
+                        if not game:
+                            continue
+                        enriched = await attach_synthetic_market_context(db, game, event)
+                        detected = await detector.process_event(enriched)
+                        payload = detected or enriched
+                        game_event = await record_game_event(db, payload)
                         await events_poller._enqueue(payload)
                         if detected:
+                            detected["game_event_id"] = game_event.id if game_event else None
                             if trade_queue.full():
                                 logger.warning("trade_queue_full")
                             await trade_queue.put(detected)
@@ -128,18 +142,27 @@ async def _trader_loop(
     trade_queue: asyncio.Queue,
     simulator: PaperTradeSimulator,
     accumulators: Accumulators,
+    session_factory: async_sessionmaker,
 ) -> None:
     while True:
         try:
             opportunity = await trade_queue.get()
             trade = simulator.evaluate_opportunity(opportunity)
             if trade:
-                logger.info(
-                    "paper_trade_opened",
-                    trade_id=trade["id"],
-                    sport=trade.get("sport"),
-                    size=trade["kelly_size_cents"],
-                )
+                async with session_factory() as db:
+                    record = await persist_trade(
+                        db,
+                        trade,
+                        game_event_id=trade.get("game_event_id"),
+                    )
+                    await db.commit()
+                    logger.info(
+                        "paper_trade_opened",
+                        trade_id=record.id,
+                        sport=trade.get("sport"),
+                        side=trade.get("side"),
+                        size=trade["kelly_size_cents"],
+                    )
         except Exception:
             logger.exception("trader_loop_error")
 
@@ -169,7 +192,7 @@ async def run_supervisor(session_factory: async_sessionmaker) -> None:
             tg.create_task(_scoreboard_loop(scoreboard, events_poller, session_factory))
             tg.create_task(_events_loop(events_poller, detector, trade_queue, session_factory))
             tg.create_task(_odds_loop(odds, detector, session_factory))
-            tg.create_task(_trader_loop(trade_queue, simulator, accumulators))
+            tg.create_task(_trader_loop(trade_queue, simulator, accumulators, session_factory))
     except* Exception as eg:
         for exc in eg.exceptions:
             logger.error("supervisor_task_crashed", error=str(exc))

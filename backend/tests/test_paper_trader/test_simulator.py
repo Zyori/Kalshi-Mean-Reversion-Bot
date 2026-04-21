@@ -62,6 +62,18 @@ class TestPaperTradeSimulator:
         assert sim.evaluate_opportunity(self._make_event(kalshi_price_at=100)) is None
         assert sim.evaluate_opportunity(self._make_event(kalshi_price_at=None)) is None
 
+    def test_opens_no_trade_when_market_overprices_home(self, sim: PaperTradeSimulator):
+        trade = sim.evaluate_opportunity(
+            self._make_event(
+                kalshi_price_at=70,
+                baseline_prob=0.40,
+                fair_prob_yes=0.40,
+            )
+        )
+        assert trade is not None
+        assert trade["side"] == "no"
+        assert trade["entry_price"] == 30
+
     def test_portfolio_full_rejected(self):
         sim = PaperTradeSimulator(Portfolio(initial_bankroll_cents=50000, max_positions=1))
         sim.evaluate_opportunity(self._make_event())

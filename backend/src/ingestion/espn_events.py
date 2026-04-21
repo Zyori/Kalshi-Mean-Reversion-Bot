@@ -124,6 +124,41 @@ def _event_context(data: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _score_from_context(context: dict[str, Any]) -> tuple[int | None, int | None]:
+    header = context.get("header") or {}
+    competitions = header.get("competitions") or []
+    if competitions:
+        competitors = competitions[0].get("competitors") or []
+        scores: dict[str, int | None] = {"home": None, "away": None}
+        for index, competitor in enumerate(competitors):
+            side = competitor.get("homeAway", "home" if index == 0 else "away")
+            score_raw = competitor.get("score")
+            try:
+                scores[side] = int(score_raw) if score_raw is not None else None
+            except (TypeError, ValueError):
+                scores[side] = None
+        return scores["home"], scores["away"]
+    return None, None
+
+
+def _score_from_play(
+    play: dict[str, Any],
+    context: dict[str, Any],
+) -> tuple[int | None, int | None]:
+    for home_key, away_key in (
+        ("homeScore", "awayScore"),
+        ("home_score", "away_score"),
+    ):
+        home_score = play.get(home_key)
+        away_score = play.get(away_key)
+        if home_score is not None and away_score is not None:
+            try:
+                return int(home_score), int(away_score)
+            except (TypeError, ValueError):
+                pass
+    return _score_from_context(context)
+
+
 def _extract_events(plays: list[dict], sport: str, context: dict[str, Any]) -> list[dict[str, Any]]:
     events = []
     for play in plays:
@@ -136,11 +171,14 @@ def _extract_events(plays: list[dict], sport: str, context: dict[str, Any]) -> l
 
         now = datetime.now(UTC)
         latency = LATENCY_ESTIMATES.get(sport, timedelta(seconds=15))
+        home_score, away_score = _score_from_play(play, context)
 
         events.append(
             {
                 "event_type": event_type,
                 "description": description,
+                "home_score": home_score,
+                "away_score": away_score,
                 "period": str(play.get("period", {}).get("number", "")),
                 "clock": play.get("clock", {}).get("displayValue", ""),
                 "detected_at": now.isoformat(),

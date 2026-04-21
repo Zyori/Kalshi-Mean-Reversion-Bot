@@ -91,6 +91,8 @@ async def upsert_game_from_scoreboard(db: AsyncSession, payload: dict) -> Game:
             start_time=start_time,
             espn_id=espn_id,
             status=payload.get("status", "scheduled"),
+            latest_home_score=payload.get("home_score"),
+            latest_away_score=payload.get("away_score"),
         )
         db.add(game)
     else:
@@ -99,8 +101,13 @@ async def upsert_game_from_scoreboard(db: AsyncSession, payload: dict) -> Game:
         game.away_team = payload.get("away_team", game.away_team)
         game.start_time = start_time
         game.status = payload.get("status", game.status)
+        game.latest_home_score = payload.get("home_score")
+        game.latest_away_score = payload.get("away_score")
         if espn_id:
             game.espn_id = espn_id
+    if str(payload.get("status", "")).lower() in {"final", "status_final", "post"}:
+        game.final_home_score = payload.get("home_score")
+        game.final_away_score = payload.get("away_score")
 
     await db.flush()
     return game

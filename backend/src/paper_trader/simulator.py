@@ -35,17 +35,25 @@ class PaperTradeSimulator:
         if confidence <= 0:
             return None
 
-        kalshi_price = event.get("kalshi_price_at")
-        if not kalshi_price or kalshi_price <= 0 or kalshi_price >= 100:
+        yes_price = event.get("kalshi_price_at")
+        if not yes_price or yes_price <= 0 or yes_price >= 100:
             return None
 
-        p = self.estimator.estimate(confidence, event)
+        fair_prob_yes = event.get("fair_prob_yes", event.get("baseline_prob", 0.5))
+        market_prob_yes = yes_price / 100.0
+        side = "yes" if fair_prob_yes >= market_prob_yes else "no"
+        contract_prob = fair_prob_yes if side == "yes" else 1.0 - fair_prob_yes
+        entry_price = yes_price if side == "yes" else 100 - yes_price
+
+        if contract_prob <= 0 or contract_prob >= 1:
+            return None
+
         ask_depth = event.get("ask_depth")
-        slippage = calculate_slippage(kalshi_price, ask_depth)
-        entry_adj = kalshi_price + slippage
+        slippage = calculate_slippage(entry_price, ask_depth)
+        entry_adj = min(99, entry_price + slippage)
 
         size = kelly_size(
-            p=p,
+            p=contract_prob,
             entry_price_cents=entry_adj,
             bankroll_cents=self.portfolio.bankroll_cents,
             pending_wagers_cents=self.portfolio.pending_wagers_cents,
@@ -55,7 +63,7 @@ class PaperTradeSimulator:
             return None
 
         f = kelly_size(
-            p=p,
+            p=contract_prob,
             entry_price_cents=entry_adj,
             bankroll_cents=self.portfolio.bankroll_cents,
             pending_wagers_cents=self.portfolio.pending_wagers_cents,
@@ -66,8 +74,8 @@ class PaperTradeSimulator:
         trade = {
             "id": self._trade_counter,
             "sport": event.get("sport"),
-            "side": "yes",
-            "entry_price": kalshi_price,
+            "side": side,
+            "entry_price": entry_price,
             "entry_price_adj": entry_adj,
             "slippage_cents": slippage,
             "confidence_score": confidence,
@@ -77,6 +85,8 @@ class PaperTradeSimulator:
             "status": "open",
             "game_event_id": event.get("game_event_id"),
             "market_id": event.get("market_id"),
+            "fair_prob_yes": fair_prob_yes,
+            "yes_price_at_entry": yes_price,
             "game_context": event,
         }
 
@@ -113,7 +123,7 @@ class PaperTradeSimulator:
         trade["pnl_kelly_cents"] = pnl_cents
         trade["pnl_flat_cents"] = pnl_flat
         trade["status"] = status
-        trade["resolution"] = "yes" if won else "no"
+        trade["resolution"] = trade["side"] if won else ("no" if trade["side"] == "yes" else "yes")
 
         self.portfolio.close_position(trade["id"], pnl_cents)
 
