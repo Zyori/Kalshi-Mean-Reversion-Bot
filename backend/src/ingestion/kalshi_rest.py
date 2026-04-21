@@ -55,6 +55,8 @@ class KalshiRestClient:
             headers={"Accept": "application/json"},
         )
         self.rate_limiter = TokenBucket(rate=8.0, capacity=10)
+        self.market_cache_ttl_s = settings.kalshi_market_cache_ttl_s
+        self._active_market_cache: dict[str, tuple[float, list[dict[str, Any]]]] = {}
 
     async def close(self) -> None:
         await self.client.aclose()
@@ -114,6 +116,11 @@ class KalshiRestClient:
         return await self._request("GET", "/events", params=params)
 
     async def get_active_game_markets(self, sport: str) -> list[dict[str, Any]]:
+        cached = self._active_market_cache.get(sport)
+        now = time.monotonic()
+        if cached is not None and (now - cached[0]) < self.market_cache_ttl_s:
+            return cached[1]
+
         series_list = SPORT_SERIES_PREFIXES.get(sport, ())
         all_markets: list[dict[str, Any]] = []
 
@@ -149,6 +156,7 @@ class KalshiRestClient:
                 if not cursor or len(events) < 200:
                     break
 
+        self._active_market_cache[sport] = (now, all_markets)
         return all_markets
 
     async def get_market(self, ticker: str) -> dict:
