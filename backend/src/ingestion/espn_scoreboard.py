@@ -23,8 +23,13 @@ POLL_INTERVAL_S = 10.0
 
 def _parse_game(event: dict, sport: str) -> dict[str, Any]:
     competition = event["competitions"][0]
-    teams = {t["homeAway"]: t["team"] for t in competition["competitors"]}
-    scores = {t["homeAway"]: int(t.get("score", 0)) for t in competition["competitors"]}
+    competitors = competition["competitors"]
+    teams = {}
+    scores = {}
+    for i, t in enumerate(competitors):
+        side = t.get("homeAway", "home" if i == 0 else "away")
+        teams[side] = t.get("team", {})
+        scores[side] = int(t.get("score", 0))
 
     status = competition.get("status", {})
     status_type = status.get("type", {}).get("name", "unknown")
