@@ -30,14 +30,14 @@ def _build_reasoning(
     classification = event.get("classification") or "unclassified"
     market_source = event.get("market_source") or "unknown"
     market_category = event.get("market_category") or "moneyline"
-    selected_team = (
-        event.get("market_label_yes") if side == "yes" else event.get("market_label_no")
-    )
+    yes_label = event.get("market_label_yes") or "YES"
+    no_label = event.get("market_label_no") or "NO"
+    selected_team = yes_label if side == "yes" else no_label
     deviation = event.get("deviation")
     deviation_text = f"{deviation:.3f}" if isinstance(deviation, (int, float)) else "n/a"
     return (
         f"Mean reversion {side.upper()} off {classification}: "
-        f"market={market_category}, pick={selected_team or 'unknown'}, "
+        f"market={market_category}, yes_contract={yes_label}, pick={selected_team}, "
         f"fair_yes={fair_prob_yes:.3f}, market_yes={market_prob_yes:.3f}, "
         f"deviation={deviation_text}, event={event_type}, source={market_source}, "
         f"entry={entry_price}c, wager={size_cents}c"

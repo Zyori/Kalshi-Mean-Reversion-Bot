@@ -84,13 +84,17 @@ def serialize_trade(trade: PaperTrade) -> dict[str, Any]:
     )
     selected_team = None
     opposing_team = None
+    contract_label_yes = None
+    contract_label_no = None
     if isinstance(game_context, dict):
+        contract_label_yes = game_context.get("market_label_yes")
+        contract_label_no = game_context.get("market_label_no")
         if trade.side == "yes":
-            selected_team = game_context.get("market_label_yes")
-            opposing_team = game_context.get("market_label_no")
+            selected_team = contract_label_yes
+            opposing_team = contract_label_no
         elif trade.side == "no":
-            selected_team = game_context.get("market_label_no")
-            opposing_team = game_context.get("market_label_yes")
+            selected_team = contract_label_no
+            opposing_team = contract_label_yes
     if selected_team is None and trigger_game:
         if trade.side == "yes":
             selected_team = trigger_game.home_team
@@ -98,6 +102,9 @@ def serialize_trade(trade: PaperTrade) -> dict[str, Any]:
         elif trade.side == "no":
             selected_team = trigger_game.away_team
             opposing_team = trigger_game.home_team
+    if contract_label_yes is None and trigger_game:
+        contract_label_yes = trigger_game.home_team
+        contract_label_no = trigger_game.away_team
     return {
         "id": trade.id,
         "game_event_id": trade.game_event_id,
@@ -108,6 +115,8 @@ def serialize_trade(trade: PaperTrade) -> dict[str, Any]:
         "matchup": matchup,
         "selected_team": selected_team,
         "opposing_team": opposing_team,
+        "contract_label_yes": contract_label_yes,
+        "contract_label_no": contract_label_no,
         "entry_price": trade.entry_price,
         "entry_price_adj": trade.entry_price_adj,
         "slippage_cents": trade.slippage_cents,

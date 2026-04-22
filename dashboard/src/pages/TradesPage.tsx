@@ -38,7 +38,7 @@ const columns = [
     ),
   }),
   col.accessor("selected_team", {
-    header: "Team",
+    header: "Pick",
     cell: (info) => (
       <div className="min-w-32">
         <span className="block text-sm">{info.getValue() ?? "--"}</span>
@@ -69,9 +69,14 @@ const columns = [
       </Badge>
     ),
   }),
-  col.accessor("side", {
-    header: "Side",
-    cell: (info) => <span className="uppercase text-xs">{info.getValue()}</span>,
+  col.display({
+    id: "contract",
+    header: "Contract",
+    cell: (info) => {
+      const trade = info.row.original;
+      const target = trade.contract_label_yes ?? trade.opposing_team ?? "--";
+      return <span className="uppercase text-xs">{`${trade.side} on ${target}`}</span>;
+    },
   }),
   col.accessor("entry_price", {
     header: () => <span className="text-right w-full block">Entry</span>,

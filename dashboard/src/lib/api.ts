@@ -120,6 +120,8 @@ export interface Trade {
   matchup: string | null;
   selected_team: string | null;
   opposing_team: string | null;
+  contract_label_yes: string | null;
+  contract_label_no: string | null;
   entry_price: number;
   entry_price_adj: number;
   slippage_cents: number;
