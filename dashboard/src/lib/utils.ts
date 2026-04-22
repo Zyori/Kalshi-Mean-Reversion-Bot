@@ -1,3 +1,16 @@
+const PLATFORM_TIME_ZONE = "America/New_York";
+const PLATFORM_TIME_LABEL = "ET";
+
+function formatInPlatformTimeZone(
+  iso: string | number | Date,
+  options: Intl.DateTimeFormatOptions,
+): string {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: PLATFORM_TIME_ZONE,
+    ...options,
+  }).format(new Date(iso));
+}
+
 export function formatCents(cents: number | null | undefined): string {
   if (cents == null) return "--";
   const dollars = cents / 100;
@@ -23,23 +36,43 @@ export function formatPercent(value: number | null | undefined): string {
 
 export function formatDate(iso: string | null | undefined): string {
   if (!iso) return "--";
-  return new Date(iso).toLocaleDateString("en-US", {
+  return `${formatInPlatformTimeZone(iso, {
     month: "short",
     day: "numeric",
     hour: "numeric",
     minute: "2-digit",
-  });
+  })} ${PLATFORM_TIME_LABEL}`;
+}
+
+export function formatTime(iso: string | number | Date | null | undefined): string {
+  if (iso == null) return "--";
+  return `${formatInPlatformTimeZone(iso, {
+    hour: "numeric",
+    minute: "2-digit",
+  })} ${PLATFORM_TIME_LABEL}`;
 }
 
 export function formatRelative(iso: string | null | undefined): string {
   if (!iso) return "--";
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60_000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
+  const diffMs = new Date(iso).getTime() - Date.now();
+  const absMins = Math.floor(Math.abs(diffMs) / 60_000);
+
+  if (absMins < 1) return "now";
+  if (diffMs > 0) {
+    if (absMins < 60) return `in ${absMins}m`;
+    const hours = Math.floor(absMins / 60);
+    if (hours < 24) return `in ${hours}h`;
+    return `in ${Math.floor(hours / 24)}d`;
+  }
+
+  if (absMins < 60) return `${absMins}m ago`;
+  const hours = Math.floor(absMins / 60);
   if (hours < 24) return `${hours}h ago`;
   return `${Math.floor(hours / 24)}d ago`;
+}
+
+export function platformTimeLabel(): string {
+  return PLATFORM_TIME_LABEL;
 }
 
 export function isLiveStatus(status: string | null | undefined): boolean {

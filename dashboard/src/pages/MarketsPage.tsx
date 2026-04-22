@@ -12,6 +12,7 @@ import {
   formatRelative,
   isFinalStatus,
   isLiveStatus,
+  platformTimeLabel,
   sortGamesByPriority,
   statusBadgeClass,
 } from "../lib/utils";
@@ -62,7 +63,10 @@ export function MarketsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Live Markets</h2>
+        <div>
+          <h2 className="text-lg font-semibold">Live Markets</h2>
+          <p className="text-sm text-text-dim">All game starts and timestamps shown in {platformTimeLabel()}.</p>
+        </div>
         <div className="flex gap-1">
           {SPORTS.map((s) => (
             <button

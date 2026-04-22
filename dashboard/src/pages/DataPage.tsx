@@ -8,6 +8,7 @@ import {
   formatPercent,
   formatRelative,
   isFinalStatus,
+  platformTimeLabel,
   sortGamesByPriority,
   statusBadgeClass,
 } from "../lib/utils";
@@ -52,7 +53,7 @@ export function DataPage() {
         <div>
           <h2 className="text-lg font-semibold">Data Feed</h2>
           <p className="text-sm text-text-dim">
-            Raw collection view for games, opening lines, and captured event flow.
+            Raw collection view for games, opening lines, and captured event flow in {platformTimeLabel()}.
           </p>
         </div>
         <div className="flex gap-1">

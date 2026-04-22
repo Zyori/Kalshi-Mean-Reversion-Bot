@@ -17,7 +17,9 @@ import {
   formatPnl,
   formatDate,
   formatPercent,
+  formatTime,
   pnlColor,
+  platformTimeLabel,
   statusBadgeClass,
 } from "../lib/utils";
 import type { Trade } from "../lib/api";
@@ -160,10 +162,13 @@ export function TradesPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Paper Trades</h2>
+        <div>
+          <h2 className="text-lg font-semibold">Paper Trades</h2>
+          <p className="text-sm text-text-dim">Trade timestamps shown in {platformTimeLabel()}.</p>
+        </div>
         {dataUpdatedAt > 0 && (
           <span className="text-xs text-text-dim">
-            Updated {new Date(dataUpdatedAt).toLocaleTimeString()}
+            Updated {formatTime(dataUpdatedAt)}
           </span>
         )}
       </div>
