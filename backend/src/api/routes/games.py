@@ -67,6 +67,11 @@ async def get_game(game_id: int, db: AsyncSession = Depends(get_db)):
             "source": line.source,
             "home_prob": line.home_prob,
             "away_prob": line.away_prob,
+            "home_spread": line.home_spread,
+            "away_spread": line.away_spread,
+            "total_points": line.total_points,
+            "home_team_total": line.home_team_total,
+            "away_team_total": line.away_team_total,
             "captured_at": line.captured_at.isoformat() if line.captured_at else None,
         }
         for line in sorted(

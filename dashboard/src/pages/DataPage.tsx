@@ -5,6 +5,7 @@ import { Card } from "../components/ui/Card";
 import { Skeleton } from "../components/ui/Skeleton";
 import {
   formatDate,
+  formatLine,
   formatPercent,
   formatRelative,
   isFinalStatus,
@@ -120,6 +121,17 @@ export function DataPage() {
                           <span>Home {formatPercent(game.opening_line_home_prob)}</span>
                         )}
                       </div>
+                      {(game.opening_spread_home != null || game.opening_total != null) && (
+                        <div className="text-xs text-text-dim">
+                          {game.opening_spread_home != null && (
+                            <span>Home {formatLine(game.opening_spread_home)}</span>
+                          )}
+                          {game.opening_spread_home != null && game.opening_total != null && " • "}
+                          {game.opening_total != null && (
+                            <span>Total {game.opening_total.toFixed(1)}</span>
+                          )}
+                        </div>
+                      )}
                       {(game.latest_home_score != null || game.latest_away_score != null) && (
                         <div className="text-xs text-text-dim">
                           Score {game.away_team} {game.latest_away_score ?? "-"} -{" "}
@@ -180,6 +192,24 @@ export function DataPage() {
                           ? `Home ${formatPercent(selectedGame.opening_line_home_prob)}`
                           : "--"}
                       </div>
+                      <div className="text-xs text-text-dim">
+                        {selectedGame.opening_spread_home != null
+                          ? `Spread ${formatLine(selectedGame.opening_spread_home)}`
+                          : "Spread --"}
+                        {" • "}
+                        {selectedGame.opening_total != null
+                          ? `Total ${selectedGame.opening_total.toFixed(1)}`
+                          : "Total --"}
+                      </div>
+                      <div className="text-xs text-text-dim">
+                        {selectedGame.opening_home_team_total != null
+                          ? `${selectedGame.home_team} TT ${selectedGame.opening_home_team_total.toFixed(1)}`
+                          : `${selectedGame.home_team} TT --`}
+                        {" • "}
+                        {selectedGame.opening_away_team_total != null
+                          ? `${selectedGame.away_team} TT ${selectedGame.opening_away_team_total.toFixed(1)}`
+                          : `${selectedGame.away_team} TT --`}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -231,6 +261,14 @@ export function DataPage() {
                           </div>
                           <div className="mt-2 text-text-dim">
                             Home {formatPercent(line.home_prob)} • Away {formatPercent(line.away_prob)}
+                          </div>
+                          <div className="mt-1 text-xs text-text-dim">
+                            Spread {formatLine(line.home_spread)} / {formatLine(line.away_spread)}
+                          </div>
+                          <div className="mt-1 text-xs text-text-dim">
+                            Total {line.total_points?.toFixed(1) ?? "--"} • {selectedGame.home_team} TT{" "}
+                            {line.home_team_total?.toFixed(1) ?? "--"} • {selectedGame.away_team} TT{" "}
+                            {line.away_team_total?.toFixed(1) ?? "--"}
                           </div>
                         </div>
                       ))

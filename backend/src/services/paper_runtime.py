@@ -94,6 +94,7 @@ async def attach_synthetic_market_context(
     yes_price = estimate_synthetic_home_price(game, event)
     event["market_id"] = market.id
     event["market_type"] = market.market_type
+    event["market_category"] = "moneyline"
     event["market_source"] = "synthetic"
     event["kalshi_price_at"] = yes_price
     event["kalshi_yes_ask"] = yes_price
@@ -126,6 +127,7 @@ async def persist_trade(
         game_event_id=game_event_id,
         market_id=trade["market_id"],
         sport=trade["sport"],
+        market_category=trade.get("market_category", "moneyline"),
         side=trade["side"],
         entry_price=trade["entry_price"],
         entry_price_adj=trade["entry_price_adj"],

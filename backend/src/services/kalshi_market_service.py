@@ -177,6 +177,7 @@ async def attach_real_market_context(
 
     event["market_id"] = market.id
     event["market_type"] = market.market_type
+    event["market_category"] = "moneyline"
     event["market_source"] = "kalshi_demo"
     event["kalshi_price_at"] = yes_ask
     event["kalshi_yes_bid"] = yes_bid

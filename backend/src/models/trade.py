@@ -18,6 +18,7 @@ class PaperTrade(Base):
     game_event_id: Mapped[int | None] = mapped_column(ForeignKey("game_events.id"))
     market_id: Mapped[int] = mapped_column(ForeignKey("markets.id"), nullable=False)
     sport: Mapped[str] = mapped_column(String(20), nullable=False)
+    market_category: Mapped[str] = mapped_column(String(20), nullable=False, default="moneyline")
     side: Mapped[str] = mapped_column(String(10), nullable=False)
     entry_price: Mapped[int] = mapped_column(Integer, nullable=False)
     entry_price_adj: Mapped[int] = mapped_column(Integer, nullable=False)

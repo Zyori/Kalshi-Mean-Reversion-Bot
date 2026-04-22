@@ -121,6 +121,9 @@ export function MarketsPage() {
                   <Badge className="bg-accent/20 text-accent-light uppercase">
                     {t.sport}
                   </Badge>
+                  <Badge className="bg-surface-3 text-text-dim uppercase text-[10px]">
+                    {t.market_category}
+                  </Badge>
                   <span className="text-sm">{t.selected_team ?? t.side}</span>
                   <span className="font-mono tabular-nums">{t.entry_price}c</span>
                   {t.matchup && (
@@ -171,9 +174,12 @@ export function MarketsPage() {
                       Score {game.away_team} {game.latest_away_score ?? "-"} -{" "}
                       {game.latest_home_score ?? "-"} {game.home_team}
                     </span>
-                    {game.opening_line_home_prob != null && (
-                      <span>Home {formatPercent(game.opening_line_home_prob)}</span>
-                    )}
+                    <span>
+                      {game.opening_line_home_prob != null
+                        ? `Home ${formatPercent(game.opening_line_home_prob)}`
+                        : "Home --"}
+                      {game.opening_total != null ? ` • Total ${game.opening_total.toFixed(1)}` : ""}
+                    </span>
                   </div>
                 </div>
               ))}
@@ -213,9 +219,12 @@ export function MarketsPage() {
                   </div>
                   <div className="mt-1 flex items-center justify-between text-xs text-text-dim">
                     <span>{formatDate(game.start_time)}</span>
-                    {game.opening_line_home_prob != null && (
-                      <span>Home {formatPercent(game.opening_line_home_prob)}</span>
-                    )}
+                    <span>
+                      {game.opening_line_home_prob != null
+                        ? `Home ${formatPercent(game.opening_line_home_prob)}`
+                        : "Home --"}
+                      {game.opening_total != null ? ` • Total ${game.opening_total.toFixed(1)}` : ""}
+                    </span>
                   </div>
                 </div>
               ))}
@@ -324,11 +333,12 @@ export function MarketsPage() {
               </p>
               <div className="flex items-center justify-between text-xs text-text-dim">
                 <span>{formatDate(g.start_time)}</span>
-                {g.opening_line_home_prob != null && (
-                  <span className="font-mono tabular-nums">
-                    Home {formatPercent(g.opening_line_home_prob)}
-                  </span>
-                )}
+                <span className="font-mono tabular-nums">
+                  {g.opening_line_home_prob != null
+                    ? `Home ${formatPercent(g.opening_line_home_prob)}`
+                    : "Home --"}
+                  {g.opening_total != null ? ` • Tot ${g.opening_total.toFixed(1)}` : ""}
+                </span>
               </div>
             </Card>
           ))}

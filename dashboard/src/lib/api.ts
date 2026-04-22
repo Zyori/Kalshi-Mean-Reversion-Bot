@@ -53,6 +53,11 @@ export interface Game {
   status: string;
   opening_line_home_prob: number | null;
   opening_line_source: string | null;
+  opening_spread_home: number | null;
+  opening_spread_away: number | null;
+  opening_total: number | null;
+  opening_home_team_total: number | null;
+  opening_away_team_total: number | null;
   latest_home_score: number | null;
   latest_away_score: number | null;
   final_home_score: number | null;
@@ -65,6 +70,11 @@ export interface OpeningLine {
   source: string;
   home_prob: number;
   away_prob: number;
+  home_spread: number | null;
+  away_spread: number | null;
+  total_points: number | null;
+  home_team_total: number | null;
+  away_team_total: number | null;
   captured_at: string | null;
 }
 
@@ -101,6 +111,7 @@ export interface Trade {
   game_event_id: number | null;
   market_id: number | null;
   sport: string;
+  market_category: string;
   side: string;
   matchup: string | null;
   selected_team: string | null;

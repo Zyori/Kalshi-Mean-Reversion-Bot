@@ -34,6 +34,12 @@ export function formatPercent(value: number | null | undefined): string {
   return `${(value * 100).toFixed(1)}%`;
 }
 
+export function formatLine(value: number | null | undefined): string {
+  if (value == null) return "--";
+  if (value > 0) return `+${value.toFixed(1)}`;
+  return value.toFixed(1);
+}
+
 export function formatDate(iso: string | null | undefined): string {
   if (!iso) return "--";
   return `${formatInPlatformTimeZone(iso, {

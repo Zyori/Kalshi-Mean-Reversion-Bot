@@ -71,6 +71,13 @@ class KalshiEnvironment(StrEnum):
     PRODUCTION = "production"
 
 
+class MarketCategory(StrEnum):
+    MONEYLINE = "moneyline"
+    SPREAD = "spread"
+    TOTAL = "total"
+    TEAM_TOTAL = "team_total"
+
+
 KALSHI_URLS = {
     KalshiEnvironment.DEMO: {
         "rest": "https://demo-api.kalshi.co/trade-api/v2",

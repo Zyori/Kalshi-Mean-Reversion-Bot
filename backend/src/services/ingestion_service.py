@@ -132,18 +132,33 @@ async def record_opening_line(db: AsyncSession, payload: dict) -> Game:
             status="scheduled",
             opening_line_home_prob=payload.get("home_prob"),
             opening_line_source=payload.get("source"),
+            opening_spread_home=payload.get("home_spread"),
+            opening_spread_away=payload.get("away_spread"),
+            opening_total=payload.get("total_points"),
+            opening_home_team_total=payload.get("home_team_total"),
+            opening_away_team_total=payload.get("away_team_total"),
         )
         db.add(game)
         await db.flush()
     else:
         game.opening_line_home_prob = payload.get("home_prob")
         game.opening_line_source = payload.get("source")
+        game.opening_spread_home = payload.get("home_spread")
+        game.opening_spread_away = payload.get("away_spread")
+        game.opening_total = payload.get("total_points")
+        game.opening_home_team_total = payload.get("home_team_total")
+        game.opening_away_team_total = payload.get("away_team_total")
 
     opening_line = OpeningLine(
         game_id=game.id,
         source=payload.get("source", "unknown"),
         home_prob=payload.get("home_prob", 0.5),
         away_prob=payload.get("away_prob", 0.5),
+        home_spread=payload.get("home_spread"),
+        away_spread=payload.get("away_spread"),
+        total_points=payload.get("total_points"),
+        home_team_total=payload.get("home_team_total"),
+        away_team_total=payload.get("away_team_total"),
         captured_at=_parse_iso_datetime(payload.get("captured_at")) or datetime.now(UTC),
         odds_raw=(
             json.dumps(payload.get("odds_raw")) if payload.get("odds_raw") is not None else None

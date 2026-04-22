@@ -108,6 +108,7 @@ class PaperTradeSimulator:
         trade = {
             "id": self._trade_counter,
             "sport": event.get("sport"),
+            "market_category": event.get("market_category", "moneyline"),
             "side": side,
             "entry_price": entry_price,
             "entry_price_adj": entry_adj,

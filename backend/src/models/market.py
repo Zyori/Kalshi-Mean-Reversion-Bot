@@ -31,6 +31,11 @@ class OpeningLine(Base):
     source: Mapped[str] = mapped_column(String(50), nullable=False)
     home_prob: Mapped[float] = mapped_column(nullable=False)
     away_prob: Mapped[float] = mapped_column(nullable=False)
+    home_spread: Mapped[float | None] = mapped_column()
+    away_spread: Mapped[float | None] = mapped_column()
+    total_points: Mapped[float | None] = mapped_column()
+    home_team_total: Mapped[float | None] = mapped_column()
+    away_team_total: Mapped[float | None] = mapped_column()
     captured_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

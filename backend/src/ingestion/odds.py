@@ -11,6 +11,8 @@ from src.core.types import Sport
 logger = get_logger(__name__)
 
 ODDS_API_BASE = "https://api.the-odds-api.com/v4/sports"
+PRIMARY_MARKETS = "h2h,spreads,totals,team_totals"
+FALLBACK_MARKETS = "h2h,spreads,totals"
 
 SPORT_KEYS: dict[str, str] = {
     Sport.NHL: "icehockey_nhl",
@@ -20,6 +22,152 @@ SPORT_KEYS: dict[str, str] = {
     Sport.SOCCER: "soccer_epl",
     Sport.UFC: "mma_mixed_martial_arts",
 }
+
+
+def _find_market(markets: list[dict[str, Any]], key: str) -> dict[str, Any] | None:
+    for market in markets:
+        if market.get("key") == key:
+            return market
+    return None
+
+
+def _parse_h2h_market(
+    market: dict[str, Any] | None,
+    home_team: str,
+    away_team: str,
+) -> tuple[float | None, float | None, dict[str, Any]]:
+    if market is None:
+        return None, None, {}
+
+    outcomes = {outcome["name"]: outcome["price"] for outcome in market.get("outcomes", [])}
+    home_odds = outcomes.get(home_team)
+    away_odds = outcomes.get(away_team)
+    if home_odds is None or away_odds is None:
+        return None, None, {}
+
+    return (
+        round(american_to_implied_prob(home_odds), 4),
+        round(american_to_implied_prob(away_odds), 4),
+        {"home": home_odds, "away": away_odds},
+    )
+
+
+def _parse_spread_market(
+    market: dict[str, Any] | None,
+    home_team: str,
+    away_team: str,
+) -> tuple[float | None, float | None, dict[str, Any]]:
+    if market is None:
+        return None, None, {}
+
+    by_name = {outcome.get("name"): outcome for outcome in market.get("outcomes", [])}
+    home = by_name.get(home_team)
+    away = by_name.get(away_team)
+    if home is None or away is None:
+        return None, None, {}
+
+    home_point = home.get("point")
+    away_point = away.get("point")
+    if home_point is None or away_point is None:
+        return None, None, {}
+
+    return (
+        float(home_point),
+        float(away_point),
+        {
+            "home": {"point": home_point, "price": home.get("price")},
+            "away": {"point": away_point, "price": away.get("price")},
+        },
+    )
+
+
+def _parse_total_market(market: dict[str, Any] | None) -> tuple[float | None, dict[str, Any]]:
+    if market is None:
+        return None, {}
+
+    outcomes = market.get("outcomes", [])
+    over = next(
+        (
+            outcome
+            for outcome in outcomes
+            if str(outcome.get("name", "")).lower() == "over"
+        ),
+        None,
+    )
+    under = next(
+        (
+            outcome
+            for outcome in outcomes
+            if str(outcome.get("name", "")).lower() == "under"
+        ),
+        None,
+    )
+    if over is not None:
+        point = over.get("point")
+    elif under is not None:
+        point = under.get("point")
+    else:
+        point = None
+    if point is None:
+        return None, {}
+
+    return (
+        float(point),
+        {
+            "over": {"point": over.get("point"), "price": over.get("price")} if over else None,
+            "under": {"point": under.get("point"), "price": under.get("price")} if under else None,
+        },
+    )
+
+
+def _team_total_outcome_team(outcome: dict[str, Any]) -> str:
+    fields = [
+        outcome.get("description"),
+        outcome.get("participant"),
+        outcome.get("team"),
+        outcome.get("name"),
+    ]
+    for field in fields:
+        if field:
+            return str(field)
+    return ""
+
+
+def _parse_team_totals_market(
+    market: dict[str, Any] | None,
+    home_team: str,
+    away_team: str,
+) -> tuple[float | None, float | None, dict[str, Any]]:
+    if market is None:
+        return None, None, {}
+
+    home_total: float | None = None
+    away_total: float | None = None
+    home_raw: list[dict[str, Any]] = []
+    away_raw: list[dict[str, Any]] = []
+
+    for outcome in market.get("outcomes", []):
+        point = outcome.get("point")
+        if point is None:
+            continue
+        label = _team_total_outcome_team(outcome).lower()
+        raw_outcome = {
+            "name": outcome.get("name"),
+            "description": outcome.get("description"),
+            "point": point,
+            "price": outcome.get("price"),
+        }
+        if home_team.lower() in label:
+            home_total = float(point)
+            home_raw.append(raw_outcome)
+        elif away_team.lower() in label:
+            away_total = float(point)
+            away_raw.append(raw_outcome)
+
+    if home_total is None and away_total is None:
+        return None, None, {}
+
+    return home_total, away_total, {"home": home_raw, "away": away_raw}
 
 def american_to_implied_prob(odds: int) -> float:
     if odds > 0:
@@ -36,33 +184,50 @@ def _parse_odds_response(data: list[dict], sport: str) -> list[dict[str, Any]]:
 
         for bookmaker in game.get("bookmakers", []):
             source = bookmaker.get("key", "")
-            for market in bookmaker.get("markets", []):
-                if market.get("key") != "h2h":
-                    continue
+            markets = bookmaker.get("markets", [])
+            home_prob, away_prob, odds_raw = _parse_h2h_market(
+                _find_market(markets, "h2h"),
+                home_team,
+                away_team,
+            )
+            home_spread, away_spread, spread_raw = _parse_spread_market(
+                _find_market(markets, "spreads"),
+                home_team,
+                away_team,
+            )
+            total_points, totals_raw = _parse_total_market(_find_market(markets, "totals"))
+            home_team_total, away_team_total, team_totals_raw = _parse_team_totals_market(
+                _find_market(markets, "team_totals"),
+                home_team,
+                away_team,
+            )
 
-                outcomes = {o["name"]: o["price"] for o in market.get("outcomes", [])}
-                home_odds = outcomes.get(home_team)
-                away_odds = outcomes.get(away_team)
+            if home_prob is None or away_prob is None:
+                continue
 
-                if home_odds is None or away_odds is None:
-                    continue
-
-                home_prob = american_to_implied_prob(home_odds)
-                away_prob = american_to_implied_prob(away_odds)
-
-                results.append(
-                    {
-                        "sport": sport,
-                        "home_team": home_team,
-                        "away_team": away_team,
-                        "start_time": start_time,
-                        "source": source,
-                        "home_prob": round(home_prob, 4),
-                        "away_prob": round(away_prob, 4),
-                        "odds_raw": {"home": home_odds, "away": away_odds},
-                        "captured_at": datetime.now(UTC).isoformat(),
-                    }
-                )
+            results.append(
+                {
+                    "sport": sport,
+                    "home_team": home_team,
+                    "away_team": away_team,
+                    "start_time": start_time,
+                    "source": source,
+                    "home_prob": home_prob,
+                    "away_prob": away_prob,
+                    "home_spread": home_spread,
+                    "away_spread": away_spread,
+                    "total_points": total_points,
+                    "home_team_total": home_team_total,
+                    "away_team_total": away_team_total,
+                    "odds_raw": {
+                        "h2h": odds_raw,
+                        "spreads": spread_raw,
+                        "totals": totals_raw,
+                        "team_totals": team_totals_raw,
+                    },
+                    "captured_at": datetime.now(UTC).isoformat(),
+                }
+            )
             break  # first bookmaker only for opening line capture
 
     return results
@@ -96,15 +261,7 @@ class OddsApiPoller:
                 continue
 
             try:
-                resp = await self.client.get(
-                    f"{ODDS_API_BASE}/{sport_key}/odds",
-                    params={
-                        "apiKey": self.api_key,
-                        "regions": "us",
-                        "markets": "h2h",
-                        "oddsFormat": "american",
-                    },
-                )
+                resp = await self._fetch_odds(sport_key)
                 remaining = resp.headers.get("x-requests-remaining", "?")
                 self._requests_used += 1
                 logger.info(
@@ -124,6 +281,32 @@ class OddsApiPoller:
 
         self._status = "connected" if all_odds else self._status
         return all_odds
+
+    async def _fetch_odds(self, sport_key: str) -> httpx.Response:
+        params = {
+            "apiKey": self.api_key,
+            "regions": "us",
+            "markets": PRIMARY_MARKETS,
+            "oddsFormat": "american",
+        }
+        resp = await self.client.get(f"{ODDS_API_BASE}/{sport_key}/odds", params=params)
+        if resp.status_code not in {400, 422}:
+            return resp
+
+        logger.warning(
+            "odds_api_market_fallback",
+            sport_key=sport_key,
+            requested=PRIMARY_MARKETS,
+            fallback=FALLBACK_MARKETS,
+            status=resp.status_code,
+        )
+        fallback_params = {
+            "apiKey": self.api_key,
+            "regions": "us",
+            "markets": FALLBACK_MARKETS,
+            "oddsFormat": "american",
+        }
+        return await self.client.get(f"{ODDS_API_BASE}/{sport_key}/odds", params=fallback_params)
 
     async def _enqueue(self, data: dict) -> None:
         if self.queue.full():

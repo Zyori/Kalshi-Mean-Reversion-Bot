@@ -37,8 +37,27 @@ async def test_record_opening_line_creates_game_and_line(db_session_factory):
                 "source": "draftkings",
                 "home_prob": 0.57,
                 "away_prob": 0.43,
+                "home_spread": -1.5,
+                "away_spread": 1.5,
+                "total_points": 6.5,
+                "home_team_total": 3.5,
+                "away_team_total": 2.5,
                 "captured_at": "2026-04-21T10:00:00Z",
-                "odds_raw": {"home": -133, "away": 120},
+                "odds_raw": {
+                    "h2h": {"home": -133, "away": 120},
+                    "spreads": {
+                        "home": {"point": -1.5, "price": -110},
+                        "away": {"point": 1.5, "price": -110},
+                    },
+                    "totals": {
+                        "over": {"point": 6.5, "price": -110},
+                        "under": {"point": 6.5, "price": -110},
+                    },
+                    "team_totals": {
+                        "home": [{"point": 3.5, "price": -110, "name": "Over"}],
+                        "away": [{"point": 2.5, "price": -110, "name": "Over"}],
+                    },
+                },
             },
         )
         await db.commit()
@@ -48,9 +67,18 @@ async def test_record_opening_line_creates_game_and_line(db_session_factory):
         stored_game = await db.get(Game, game.id)
         assert stored_game is not None
         assert stored_game.opening_line_home_prob == 0.57
+        assert stored_game.opening_spread_home == pytest.approx(-1.5)
+        assert stored_game.opening_total == pytest.approx(6.5)
+        assert stored_game.opening_home_team_total == pytest.approx(3.5)
+        assert stored_game.opening_away_team_total == pytest.approx(2.5)
 
         lines = (await db.execute(OpeningLine.__table__.select())).all()
         assert len(lines) == 1
+        line = lines[0]
+        assert line.home_spread == pytest.approx(-1.5)
+        assert line.total_points == pytest.approx(6.5)
+        assert line.home_team_total == pytest.approx(3.5)
+        assert line.away_team_total == pytest.approx(2.5)
 
 
 async def test_upsert_scoreboard_matches_existing_game_by_teams_and_start_time(db_session_factory):
@@ -147,10 +175,32 @@ async def test_record_opening_line_handles_naive_datetime_from_existing_sqlite_r
                 "source": "draftkings",
                 "home_prob": 0.61,
                 "away_prob": 0.39,
+                "home_spread": -1.5,
+                "away_spread": 1.5,
+                "total_points": 8.5,
+                "home_team_total": 5.0,
+                "away_team_total": 3.5,
                 "captured_at": "2026-04-21T20:00:00Z",
-                "odds_raw": {"home": -156, "away": 140},
+                "odds_raw": {
+                    "h2h": {"home": -156, "away": 140},
+                    "spreads": {
+                        "home": {"point": -1.5, "price": -110},
+                        "away": {"point": 1.5, "price": -110},
+                    },
+                    "totals": {
+                        "over": {"point": 8.5, "price": -110},
+                        "under": {"point": 8.5, "price": -110},
+                    },
+                    "team_totals": {
+                        "home": [{"point": 5.0, "price": -110, "name": "Over"}],
+                        "away": [{"point": 3.5, "price": -110, "name": "Over"}],
+                    },
+                },
             },
         )
         await db.commit()
 
         assert game.id == existing.id
+        refreshed = await db.get(Game, existing.id)
+        assert refreshed is not None
+        assert refreshed.opening_total == pytest.approx(8.5)

@@ -61,6 +61,14 @@ const columns = [
       </Badge>
     ),
   }),
+  col.accessor("market_category", {
+    header: "Market",
+    cell: (info) => (
+      <Badge className="bg-surface-3 text-text-dim uppercase text-[10px]">
+        {info.getValue()}
+      </Badge>
+    ),
+  }),
   col.accessor("side", {
     header: "Side",
     cell: (info) => <span className="uppercase text-xs">{info.getValue()}</span>,
