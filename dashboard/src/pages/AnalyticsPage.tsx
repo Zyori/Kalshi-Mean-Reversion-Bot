@@ -1,6 +1,8 @@
 import {
   useAnalysisSummary,
   useAnalysisBySport,
+  useAnalysisByEventType,
+  useAnalysisByMarketCategory,
   useEquityCurve,
   useKellyComparison,
   useInsights,
@@ -31,6 +33,8 @@ function InsightTypeBadge({ type }: { type: string }) {
 export function AnalyticsPage() {
   const { data: summary, isLoading: loadingSummary } = useAnalysisSummary();
   const { data: bySport } = useAnalysisBySport();
+  const { data: byEventType } = useAnalysisByEventType();
+  const { data: byMarketCategory } = useAnalysisByMarketCategory();
   const { data: equity } = useEquityCurve();
   const { data: kelly } = useKellyComparison();
   const { data: insights } = useInsights();
@@ -108,6 +112,60 @@ export function AnalyticsPage() {
         </h3>
         <SportBreakdownChart data={bySport ?? []} />
       </Card>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <h3 className="mb-3 text-sm font-medium text-text-dim">
+            Trigger Events
+          </h3>
+          {!byEventType || byEventType.length === 0 ? (
+            <p className="text-sm text-text-dim">No resolved trigger data yet</p>
+          ) : (
+            <div className="space-y-2">
+              {byEventType.slice(0, 8).map((row) => (
+                <div
+                  key={row.event_type}
+                  className="flex items-center justify-between rounded-md bg-surface-2 px-3 py-2"
+                >
+                  <div>
+                    <p className="text-sm font-medium">{row.event_type}</p>
+                    <p className="text-xs text-text-dim">{row.count} resolved trades</p>
+                  </div>
+                  <span className={`font-mono text-sm ${pnlColor(row.total_pnl_cents)}`}>
+                    {formatPnl(row.total_pnl_cents)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        <Card>
+          <h3 className="mb-3 text-sm font-medium text-text-dim">
+            Market Rails
+          </h3>
+          {!byMarketCategory || byMarketCategory.length === 0 ? (
+            <p className="text-sm text-text-dim">No resolved rail data yet</p>
+          ) : (
+            <div className="space-y-2">
+              {byMarketCategory.map((row) => (
+                <div
+                  key={row.market_category}
+                  className="flex items-center justify-between rounded-md bg-surface-2 px-3 py-2"
+                >
+                  <div>
+                    <p className="text-sm font-medium uppercase">{row.market_category}</p>
+                    <p className="text-xs text-text-dim">{row.count} resolved trades</p>
+                  </div>
+                  <span className={`font-mono text-sm ${pnlColor(row.total_pnl_cents)}`}>
+                    {formatPnl(row.total_pnl_cents)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
 
       {insights && insights.length > 0 && (
         <Card>

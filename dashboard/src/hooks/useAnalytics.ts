@@ -31,6 +31,26 @@ export function useEquityCurve() {
   });
 }
 
+export function useAnalysisByEventType() {
+  return useQuery({
+    queryKey: ["analysis", "by-event-type"],
+    queryFn: api.analysisByEventType,
+    refetchInterval: 30_000,
+    staleTime: 25_000,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useAnalysisByMarketCategory() {
+  return useQuery({
+    queryKey: ["analysis", "by-market-category"],
+    queryFn: api.analysisByMarketCategory,
+    refetchInterval: 30_000,
+    staleTime: 25_000,
+    placeholderData: keepPreviousData,
+  });
+}
+
 export function useKellyComparison() {
   return useQuery({
     queryKey: ["analysis", "kelly-comparison"],

@@ -32,3 +32,15 @@ async def test_analysis_summary_includes_mock_bankroll_fields(client: AsyncClien
     assert body["current_bankroll_cents"] == (
         body["starting_bankroll_cents"] + body["total_pnl_cents"]
     )
+
+
+async def test_analysis_breakdowns_are_available(client: AsyncClient, _authed: str):
+    await _login(client, _authed)
+
+    by_event = await client.get("/api/analysis/by-event-type")
+    assert by_event.status_code == 200
+    assert isinstance(by_event.json(), list)
+
+    by_market = await client.get("/api/analysis/by-market-category")
+    assert by_market.status_code == 200
+    assert isinstance(by_market.json(), list)

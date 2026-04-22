@@ -169,6 +169,12 @@ export interface EventTypeBreakdown {
   total_pnl_cents: number;
 }
 
+export interface MarketCategoryBreakdown {
+  market_category: string;
+  count: number;
+  total_pnl_cents: number;
+}
+
 export interface EquityPoint {
   time: string | null;
   pnl: number;
@@ -251,6 +257,8 @@ export const api = {
   analysisBySport: () => get<SportBreakdown[]>("/analysis/by-sport"),
   analysisByEventType: () =>
     get<EventTypeBreakdown[]>("/analysis/by-event-type"),
+  analysisByMarketCategory: () =>
+    get<MarketCategoryBreakdown[]>("/analysis/by-market-category"),
   equityCurve: () => get<EquityPoint[]>("/analysis/equity-curve"),
   kellyComparison: () => get<KellyPoint[]>("/analysis/kelly-comparison"),
   insights: (status?: string) => {

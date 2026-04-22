@@ -1,3 +1,5 @@
+import json
+
 from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,6 +10,16 @@ from src.models.analysis import Insight
 from src.models.trade import PaperTrade
 
 router = APIRouter(prefix="/api")
+
+
+def _load_trade_context(raw: str | None) -> dict:
+    if not raw:
+        return {}
+    try:
+        value = json.loads(raw)
+    except json.JSONDecodeError:
+        return {}
+    return value if isinstance(value, dict) else {}
 
 
 @router.get("/analysis/summary")
@@ -68,19 +80,44 @@ async def analysis_by_sport(db: AsyncSession = Depends(get_db)):
 
 @router.get("/analysis/by-event-type")
 async def analysis_by_event_type(db: AsyncSession = Depends(get_db)):
+    stmt = select(PaperTrade.game_context, PaperTrade.pnl_cents).where(
+        PaperTrade.status.in_(["resolved_win", "resolved_loss", "resolved_push"])
+    )
+    result = await db.execute(stmt)
+    buckets: dict[str, dict[str, int]] = {}
+    for row in result:
+        context = _load_trade_context(row.game_context)
+        event_type = context.get("event_type") or "unknown"
+        bucket = buckets.setdefault(event_type, {"count": 0, "total_pnl_cents": 0})
+        bucket["count"] += 1
+        bucket["total_pnl_cents"] += row.pnl_cents or 0
+
+    items = [
+        {"event_type": event_type, **stats}
+        for event_type, stats in buckets.items()
+    ]
+    items.sort(key=lambda item: (-item["count"], item["event_type"]))
+    return items[:20]
+
+
+@router.get("/analysis/by-market-category")
+async def analysis_by_market_category(db: AsyncSession = Depends(get_db)):
     stmt = (
         select(
-            PaperTrade.game_context,
+            PaperTrade.market_category,
             func.count(PaperTrade.id).label("count"),
             func.sum(PaperTrade.pnl_cents).label("total_pnl"),
         )
-        .where(PaperTrade.status.in_(["resolved_win", "resolved_loss"]))
-        .group_by(PaperTrade.game_context)
-        .limit(20)
+        .where(PaperTrade.status.in_(["resolved_win", "resolved_loss", "resolved_push"]))
+        .group_by(PaperTrade.market_category)
     )
     result = await db.execute(stmt)
     return [
-        {"event_type": row.game_context, "count": row.count, "total_pnl_cents": row.total_pnl or 0}
+        {
+            "market_category": row.market_category,
+            "count": row.count,
+            "total_pnl_cents": row.total_pnl or 0,
+        }
         for row in result
     ]
 
