@@ -1,3 +1,4 @@
+import json
 from datetime import UTC, datetime
 
 import pytest
@@ -140,6 +141,10 @@ async def test_record_game_event_attaches_to_game(db_session_factory):
                 "confidence_score": 0.71,
                 "baseline_prob": 0.56,
                 "deviation": 0.14,
+                "market_category": "spread",
+                "market_source": "synthetic",
+                "market_label_yes": "Dallas Stars -1.5",
+                "market_label_no": "Colorado Avalanche +1.5",
             },
         )
         await db.commit()
@@ -149,6 +154,9 @@ async def test_record_game_event_attaches_to_game(db_session_factory):
         assert stored_event is not None
         assert stored_event.game_id == game.id
         assert stored_event.classification == "reversion_candidate"
+        espn_data = json.loads(stored_event.espn_data or "{}")
+        assert espn_data["market_category"] == "spread"
+        assert espn_data["market_source"] == "synthetic"
 
 
 async def test_record_opening_line_handles_naive_datetime_from_existing_sqlite_row(

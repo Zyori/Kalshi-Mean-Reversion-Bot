@@ -183,6 +183,23 @@ async def record_game_event(db: AsyncSession, payload: dict) -> GameEvent | None
 
     game.status = payload.get("status", game.status)
 
+    espn_data = payload.get("espn_data")
+    if isinstance(espn_data, dict):
+        stored_espn_data = {
+            **espn_data,
+            "market_category": payload.get("market_category"),
+            "market_source": payload.get("market_source"),
+            "market_label_yes": payload.get("market_label_yes"),
+            "market_label_no": payload.get("market_label_no"),
+        }
+    else:
+        stored_espn_data = {
+            "market_category": payload.get("market_category"),
+            "market_source": payload.get("market_source"),
+            "market_label_yes": payload.get("market_label_yes"),
+            "market_label_no": payload.get("market_label_no"),
+        }
+
     event = GameEvent(
         game_id=game.id,
         event_type=payload.get("event_type", "unknown"),
@@ -193,9 +210,7 @@ async def record_game_event(db: AsyncSession, payload: dict) -> GameEvent | None
         clock=payload.get("clock"),
         detected_at=_parse_iso_datetime(payload.get("detected_at")) or datetime.now(UTC),
         estimated_real_at=_parse_iso_datetime(payload.get("estimated_real_at")),
-        espn_data=(
-            json.dumps(payload.get("espn_data")) if payload.get("espn_data") is not None else None
-        ),
+        espn_data=json.dumps(stored_espn_data),
         classification=payload.get("classification"),
         confidence_score=payload.get("confidence_score"),
         kalshi_price_at=payload.get("kalshi_price_at"),
