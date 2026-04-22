@@ -17,14 +17,42 @@ def calculate_slippage(entry_price_cents: int, ask_depth: int | None = None) -> 
     return base
 
 
+def _game_state_text(event: dict[str, Any]) -> str:
+    period = event.get("period")
+    clock = event.get("clock")
+    away_team = event.get("away_team")
+    home_team = event.get("home_team")
+    away_score = event.get("away_score")
+    home_score = event.get("home_score")
+
+    parts: list[str] = []
+    if period:
+        parts.append(f"P{period}")
+    if clock:
+        parts.append(str(clock))
+    if away_team and home_team:
+        parts.append(f"{away_team} {away_score}-{home_score} {home_team}")
+    return ", ".join(parts)
+
+
+def _market_context_text(event: dict[str, Any], market_category: str) -> str:
+    if market_category == "spread":
+        spread = event.get("opening_spread_home")
+        if spread is not None:
+            return f"opening spread {spread:+.1f}"
+    if market_category == "total":
+        total = event.get("opening_total")
+        if total is not None:
+            return f"opening total {total:.1f}"
+    return "opening moneyline baseline"
+
+
 def _build_reasoning(
     *,
     event: dict[str, Any],
     side: str,
     fair_prob_yes: float,
     market_prob_yes: float,
-    entry_price: int,
-    size_cents: int,
 ) -> str:
     event_type = event.get("event_type") or "event"
     classification = event.get("classification") or "unclassified"
@@ -33,14 +61,29 @@ def _build_reasoning(
     yes_label = event.get("market_label_yes") or "YES"
     no_label = event.get("market_label_no") or "NO"
     selected_team = yes_label if side == "yes" else no_label
-    deviation = event.get("deviation")
-    deviation_text = f"{deviation:.3f}" if isinstance(deviation, (int, float)) else "n/a"
+    event_type = event.get("event_type") or "event"
+    state_text = _game_state_text(event)
+    market_context = _market_context_text(event, market_category)
+    pricing_gap = abs(fair_prob_yes - market_prob_yes) * 100
+    market_view = (
+        f"market prices {yes_label} at {market_prob_yes:.0%}, "
+        f"while model fair is {fair_prob_yes:.0%}"
+    )
+    if side == "yes":
+        thesis = (
+            f"taking {selected_team} because YES looks too cheap "
+            f"after the {event_type.lower()}"
+        )
+    else:
+        thesis = (
+            f"taking {selected_team} because YES looks too rich "
+            f"after the {event_type.lower()}"
+        )
     return (
-        f"Mean reversion {side.upper()} off {classification}: "
-        f"market={market_category}, yes_contract={yes_label}, pick={selected_team}, "
-        f"fair_yes={fair_prob_yes:.3f}, market_yes={market_prob_yes:.3f}, "
-        f"deviation={deviation_text}, event={event_type}, source={market_source}, "
-        f"entry={entry_price}c, wager={size_cents}c"
+        f"{thesis}. "
+        f"{event_type} produced a {classification} in {state_text or 'live play'}. "
+        f"{market_view} off the {market_context} "
+        f"({pricing_gap:.1f} pts gap, source {market_source})."
     )
 
 
@@ -130,8 +173,6 @@ class PaperTradeSimulator:
                 side=side,
                 fair_prob_yes=fair_prob_yes,
                 market_prob_yes=market_prob_yes,
-                entry_price=entry_price,
-                size_cents=size,
             ),
         }
 

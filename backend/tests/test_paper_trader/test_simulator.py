@@ -104,7 +104,7 @@ class TestPaperTradeSimulator:
         )
         assert trade is not None
         assert trade["market_category"] == "total"
-        assert "pick=Over 219.5" in trade["reasoning"]
+        assert "taking Over 219.5" in trade["reasoning"]
 
     def test_portfolio_full_rejected(self):
         sim = PaperTradeSimulator(Portfolio(initial_bankroll_cents=50000, max_positions=1))
