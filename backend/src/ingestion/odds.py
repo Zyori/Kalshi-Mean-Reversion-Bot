@@ -241,6 +241,7 @@ class OddsApiPoller:
         self.client = httpx.AsyncClient(timeout=15.0)
         self._status = "disconnected"
         self._requests_used = 0
+        self._markets_by_sport_key: dict[str, str] = {}
 
     @property
     def status(self) -> str:
@@ -283,23 +284,25 @@ class OddsApiPoller:
         return all_odds
 
     async def _fetch_odds(self, sport_key: str) -> httpx.Response:
+        requested_markets = self._markets_by_sport_key.get(sport_key, PRIMARY_MARKETS)
         params = {
             "apiKey": self.api_key,
             "regions": "us",
-            "markets": PRIMARY_MARKETS,
+            "markets": requested_markets,
             "oddsFormat": "american",
         }
         resp = await self.client.get(f"{ODDS_API_BASE}/{sport_key}/odds", params=params)
-        if resp.status_code not in {400, 422}:
+        if resp.status_code not in {400, 422} or requested_markets == FALLBACK_MARKETS:
             return resp
 
         logger.warning(
             "odds_api_market_fallback",
             sport_key=sport_key,
-            requested=PRIMARY_MARKETS,
+            requested=requested_markets,
             fallback=FALLBACK_MARKETS,
             status=resp.status_code,
         )
+        self._markets_by_sport_key[sport_key] = FALLBACK_MARKETS
         fallback_params = {
             "apiKey": self.api_key,
             "regions": "us",
