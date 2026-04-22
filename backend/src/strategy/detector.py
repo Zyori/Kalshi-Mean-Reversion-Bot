@@ -47,6 +47,9 @@ class EventDetector:
             period=period,
             baseline_prob=baseline,
             is_home_favorite=is_home_favorite,
+            market_category=event.get("market_category", "moneyline"),
+            opening_spread_home=event.get("opening_spread_home"),
+            opening_total=event.get("opening_total"),
         )
 
         event["classification"] = classification
