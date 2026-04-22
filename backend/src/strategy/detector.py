@@ -72,6 +72,7 @@ class EventDetector:
                 "reversion_candidate_detected",
                 sport=sport,
                 espn_id=espn_id,
+                market_category=event.get("market_category"),
                 deviation=round(deviation, 4),
                 confidence=confidence,
                 event_type=event_type,

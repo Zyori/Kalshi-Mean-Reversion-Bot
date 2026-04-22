@@ -141,6 +141,7 @@ class PaperTradeSimulator:
             "paper_trade_opened",
             trade_id=self._trade_counter,
             sport=trade["sport"],
+            market_category=trade["market_category"],
             entry=entry_adj,
             size=size,
             confidence=confidence,

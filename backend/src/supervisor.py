@@ -195,6 +195,7 @@ async def _trader_loop(
                         "paper_trade_opened",
                         trade_id=record.id,
                         sport=trade.get("sport"),
+                        market_category=trade.get("market_category"),
                         side=trade.get("side"),
                         size=trade["kelly_size_cents"],
                     )
