@@ -3,6 +3,7 @@ import {
   useAnalysisBySport,
   useAnalysisByEventType,
   useAnalysisByMarketCategory,
+  useRecentEventAudit,
   useEquityCurve,
   useKellyComparison,
   useInsights,
@@ -35,6 +36,7 @@ export function AnalyticsPage() {
   const { data: bySport } = useAnalysisBySport();
   const { data: byEventType } = useAnalysisByEventType();
   const { data: byMarketCategory } = useAnalysisByMarketCategory();
+  const { data: eventAudit } = useRecentEventAudit();
   const { data: equity } = useEquityCurve();
   const { data: kelly } = useKellyComparison();
   const { data: insights } = useInsights();
@@ -166,6 +168,28 @@ export function AnalyticsPage() {
           )}
         </Card>
       </div>
+
+      <Card>
+        <h3 className="mb-3 text-sm font-medium text-text-dim">
+          Recent Classification Audit
+        </h3>
+        {!eventAudit || eventAudit.length === 0 ? (
+          <p className="text-sm text-text-dim">No recent event audit data yet</p>
+        ) : (
+          <div className="grid gap-2 md:grid-cols-3">
+            {eventAudit.map((row) => (
+              <div
+                key={`${row.market_category}-${row.classification}`}
+                className="rounded-md bg-surface-2 px-3 py-2"
+              >
+                <p className="text-xs uppercase text-text-dim">{row.market_category}</p>
+                <p className="text-sm font-medium">{row.classification}</p>
+                <p className="text-xs text-text-dim">{row.count} recent events</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
 
       {insights && insights.length > 0 && (
         <Card>

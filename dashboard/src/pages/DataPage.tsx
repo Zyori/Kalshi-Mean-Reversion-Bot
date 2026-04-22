@@ -18,34 +18,55 @@ const SPORTS = ["all", "nhl", "nba", "mlb", "nfl", "soccer", "ufc"] as const;
 
 export function DataPage() {
   const [sport, setSport] = useState<string>("all");
-  const { data: games, isLoading } = useGames({
+  const { data: activeGames, isLoading: loadingActiveGames } = useGames({
     sport: sport === "all" ? undefined : sport,
     days_ahead: 7,
+    sort: "asc",
+    limit: 80,
+  });
+  const { data: historyGames, isLoading: loadingHistoryGames } = useGames({
+    sport: sport === "all" ? undefined : sport,
+    days_back: 30,
+    sort: "desc",
+    limit: 120,
   });
   const [selectedGameId, setSelectedGameId] = useState<number | null>(null);
 
   useEffect(() => {
-    if (!games || games.length === 0) {
+    const availableGames = [...(activeGames ?? []), ...(historyGames ?? [])];
+    if (availableGames.length === 0) {
       setSelectedGameId(null);
       return;
     }
     setSelectedGameId((current) =>
-      current && games.some((game) => game.id === current) ? current : games[0].id,
+      current && availableGames.some((game) => game.id === current)
+        ? current
+        : availableGames[0].id,
     );
-  }, [games]);
+  }, [activeGames, historyGames]);
 
   const { data: selectedGame, isLoading: loadingGame } = useGame(selectedGameId ?? 0);
 
-  const collectedGames = useMemo(
+  const trackedActiveGames = useMemo(
     () =>
       sortGamesByPriority(
-        (games ?? []).filter(
+        (activeGames ?? []).filter(
           (game) =>
             !isFinalStatus(game.status) &&
             (game.opening_line_home_prob != null || game.espn_id),
         ),
       ),
-    [games],
+    [activeGames],
+  );
+
+  const historicalGames = useMemo(
+    () =>
+      (historyGames ?? []).filter(
+        (game) =>
+          isFinalStatus(game.status) &&
+          (game.opening_line_home_prob != null || game.espn_id),
+      ),
+    [historyGames],
   );
 
   return (
@@ -76,74 +97,117 @@ export function DataPage() {
 
       <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
         <Card className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium text-text-dim">Collected Games</h3>
-            <span className="text-xs text-text-dim">{collectedGames.length} tracked</span>
-          </div>
-          {isLoading ? (
-            <div className="space-y-2">
-              {Array.from({ length: 8 }).map((_, index) => (
-                <Skeleton key={index} className="h-20" />
-              ))}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-medium text-text-dim">Live + Upcoming</h3>
+              <span className="text-xs text-text-dim">{trackedActiveGames.length} tracked</span>
             </div>
-          ) : collectedGames.length === 0 ? (
-            <p className="py-8 text-center text-sm text-text-dim">
-              No collected games in this filter yet
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {collectedGames.map((game) => {
-                const selected = game.id === selectedGameId;
-                return (
-                  <button
-                    key={game.id}
-                    type="button"
-                    onClick={() => setSelectedGameId(game.id)}
-                    className={`w-full rounded-lg border px-3 py-3 text-left transition-colors ${
-                      selected
-                        ? "border-accent/40 bg-accent/10"
-                        : "border-border bg-surface-2 hover:bg-surface-3"
-                    }`}
-                  >
-                    <div className="mb-2 flex items-center justify-between gap-2">
-                      <Badge className="bg-surface-3 text-text-dim uppercase text-[10px]">
-                        {game.sport}
-                      </Badge>
-                      <Badge className={statusBadgeClass(game.status)}>{game.status}</Badge>
-                    </div>
-                    <div className="space-y-1">
+            {loadingActiveGames ? (
+              <div className="space-y-2">
+                {Array.from({ length: 6 }).map((_, index) => (
+                  <Skeleton key={index} className="h-20" />
+                ))}
+              </div>
+            ) : trackedActiveGames.length === 0 ? (
+              <p className="py-4 text-center text-sm text-text-dim">
+                No live or upcoming tracked games in this filter
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {trackedActiveGames.map((game) => {
+                  const selected = game.id === selectedGameId;
+                  return (
+                    <button
+                      key={game.id}
+                      type="button"
+                      onClick={() => setSelectedGameId(game.id)}
+                      className={`w-full rounded-lg border px-3 py-3 text-left transition-colors ${
+                        selected
+                          ? "border-accent/40 bg-accent/10"
+                          : "border-border bg-surface-2 hover:bg-surface-3"
+                      }`}
+                    >
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <Badge className="bg-surface-3 text-text-dim uppercase text-[10px]">
+                          {game.sport}
+                        </Badge>
+                        <Badge className={statusBadgeClass(game.status)}>{game.status}</Badge>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium">
+                          {game.away_team} @ {game.home_team}
+                        </p>
+                        <div className="flex items-center justify-between text-xs text-text-dim">
+                          <span>{formatDate(game.start_time)}</span>
+                          {game.opening_line_home_prob != null && (
+                            <span>Home {formatPercent(game.opening_line_home_prob)}</span>
+                          )}
+                        </div>
+                        {(game.latest_home_score != null || game.latest_away_score != null) && (
+                          <div className="text-xs text-text-dim">
+                            Score {game.away_team} {game.latest_away_score ?? "-"} -{" "}
+                            {game.latest_home_score ?? "-"} {game.home_team}
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          <div className="mt-4 border-t border-border pt-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-medium text-text-dim">Historical Collection</h3>
+              <span className="text-xs text-text-dim">{historicalGames.length} final games</span>
+            </div>
+            {loadingHistoryGames ? (
+              <div className="space-y-2">
+                {Array.from({ length: 6 }).map((_, index) => (
+                  <Skeleton key={index} className="h-16" />
+                ))}
+              </div>
+            ) : historicalGames.length === 0 ? (
+              <p className="py-4 text-center text-sm text-text-dim">
+                No recent historical tracked games yet
+              </p>
+            ) : (
+              <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
+                {historicalGames.map((game) => {
+                  const selected = game.id === selectedGameId;
+                  return (
+                    <button
+                      key={game.id}
+                      type="button"
+                      onClick={() => setSelectedGameId(game.id)}
+                      className={`w-full rounded-lg border px-3 py-2 text-left transition-colors ${
+                        selected
+                          ? "border-accent/40 bg-accent/10"
+                          : "border-border bg-surface-2 hover:bg-surface-3"
+                      }`}
+                    >
+                      <div className="mb-1 flex items-center justify-between gap-2">
+                        <Badge className="bg-surface-3 text-text-dim uppercase text-[10px]">
+                          {game.sport}
+                        </Badge>
+                        <Badge className={statusBadgeClass(game.status)}>{game.status}</Badge>
+                      </div>
                       <p className="text-sm font-medium">
                         {game.away_team} @ {game.home_team}
                       </p>
-                      <div className="flex items-center justify-between text-xs text-text-dim">
+                      <div className="mt-1 flex items-center justify-between text-xs text-text-dim">
                         <span>{formatDate(game.start_time)}</span>
-                        {game.opening_line_home_prob != null && (
-                          <span>Home {formatPercent(game.opening_line_home_prob)}</span>
-                        )}
+                        <span>
+                          {game.away_team} {game.final_away_score ?? "-"} -{" "}
+                          {game.final_home_score ?? "-"} {game.home_team}
+                        </span>
                       </div>
-                      {(game.opening_spread_home != null || game.opening_total != null) && (
-                        <div className="text-xs text-text-dim">
-                          {game.opening_spread_home != null && (
-                            <span>Home {formatLine(game.opening_spread_home)}</span>
-                          )}
-                          {game.opening_spread_home != null && game.opening_total != null && " • "}
-                          {game.opening_total != null && (
-                            <span>Total {game.opening_total.toFixed(1)}</span>
-                          )}
-                        </div>
-                      )}
-                      {(game.latest_home_score != null || game.latest_away_score != null) && (
-                        <div className="text-xs text-text-dim">
-                          Score {game.away_team} {game.latest_away_score ?? "-"} -{" "}
-                          {game.latest_home_score ?? "-"} {game.home_team}
-                        </div>
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </Card>
 
         <div className="space-y-4">

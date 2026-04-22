@@ -1,12 +1,15 @@
 import json
+from collections import defaultdict
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from src.api.dependencies import get_db
 from src.config import settings
 from src.models.analysis import Insight
+from src.models.game import GameEvent
 from src.models.trade import PaperTrade
 
 router = APIRouter(prefix="/api")
@@ -120,6 +123,34 @@ async def analysis_by_market_category(db: AsyncSession = Depends(get_db)):
         }
         for row in result
     ]
+
+
+@router.get("/analysis/recent-event-audit")
+async def recent_event_audit(limit: int = 500, db: AsyncSession = Depends(get_db)):
+    stmt = (
+        select(GameEvent)
+        .options(selectinload(GameEvent.game))
+        .order_by(GameEvent.detected_at.desc())
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    buckets: dict[tuple[str, str], int] = defaultdict(int)
+    for event in result.scalars():
+        context = _load_trade_context(event.espn_data)
+        market_category = context.get("market_category") or "unlabeled"
+        classification = event.classification or "unclassified"
+        buckets[(market_category, classification)] += 1
+
+    rows = [
+        {
+            "market_category": market_category,
+            "classification": classification,
+            "count": count,
+        }
+        for (market_category, classification), count in buckets.items()
+    ]
+    rows.sort(key=lambda row: (row["market_category"], -row["count"], row["classification"]))
+    return rows
 
 
 @router.get("/analysis/equity-curve")

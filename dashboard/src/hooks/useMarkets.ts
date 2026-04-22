@@ -5,6 +5,9 @@ export function useGames(params?: {
   sport?: string;
   status?: string;
   days_ahead?: number;
+  days_back?: number;
+  sort?: "asc" | "desc";
+  limit?: number;
 }) {
   return useQuery({
     queryKey: ["games", params],

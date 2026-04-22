@@ -175,6 +175,12 @@ export interface MarketCategoryBreakdown {
   total_pnl_cents: number;
 }
 
+export interface EventAuditRow {
+  market_category: string;
+  classification: string;
+  count: number;
+}
+
 export interface EquityPoint {
   time: string | null;
   pnl: number;
@@ -211,11 +217,21 @@ export const api = {
   publicStatus: () => get<PublicStatus>("/public/status"),
   publicHeartbeat: () => get<{ ok: true; timestamp: number }>("/public/heartbeat"),
   health: () => get<HealthStatus>("/health"),
-  games: (params?: { sport?: string; status?: string; days_ahead?: number }) => {
+  games: (params?: {
+    sport?: string;
+    status?: string;
+    days_ahead?: number;
+    days_back?: number;
+    sort?: "asc" | "desc";
+    limit?: number;
+  }) => {
     const qs = new URLSearchParams();
     if (params?.sport) qs.set("sport", params.sport);
     if (params?.status) qs.set("status", params.status);
     if (params?.days_ahead != null) qs.set("days_ahead", String(params.days_ahead));
+    if (params?.days_back != null) qs.set("days_back", String(params.days_back));
+    if (params?.sort) qs.set("sort", params.sort);
+    if (params?.limit != null) qs.set("limit", String(params.limit));
     const q = qs.toString();
     return get<Game[]>(`/games${q ? `?${q}` : ""}`);
   },
@@ -259,6 +275,8 @@ export const api = {
     get<EventTypeBreakdown[]>("/analysis/by-event-type"),
   analysisByMarketCategory: () =>
     get<MarketCategoryBreakdown[]>("/analysis/by-market-category"),
+  recentEventAudit: () =>
+    get<EventAuditRow[]>("/analysis/recent-event-audit"),
   equityCurve: () => get<EquityPoint[]>("/analysis/equity-curve"),
   kellyComparison: () => get<KellyPoint[]>("/analysis/kelly-comparison"),
   insights: (status?: string) => {

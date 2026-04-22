@@ -17,7 +17,9 @@ async def list_games(
     sport: str | None = None,
     status: str | None = None,
     days_ahead: int | None = None,
+    days_back: int | None = None,
     limit: int = 50,
+    sort: str = "asc",
     db: AsyncSession = Depends(get_db),
 ):
     stmt = select(Game)
@@ -25,10 +27,12 @@ async def list_games(
         stmt = stmt.where(Game.sport == sport)
     if status:
         stmt = stmt.where(Game.status == status)
-    if days_ahead is not None:
+    if days_ahead is not None or days_back is not None:
         now = datetime.now(UTC)
-        window_end = now + timedelta(days=days_ahead)
-        window_start = now - timedelta(hours=12)
+        window_end = now + timedelta(days=days_ahead or 0)
+        window_start = now - timedelta(days=days_back or 0)
+        if days_ahead is not None and days_back is None:
+            window_start = now - timedelta(hours=12)
         live_like = Game.status.in_(["STATUS_IN_PROGRESS", "STATUS_END_PERIOD", "live"])
         stmt = stmt.where(
             or_(
@@ -36,7 +40,11 @@ async def list_games(
                 and_(Game.start_time >= window_start, Game.start_time <= window_end),
             )
         )
-    stmt = stmt.order_by(Game.start_time.asc()).limit(limit)
+    if sort == "desc":
+        stmt = stmt.order_by(Game.start_time.desc())
+    else:
+        stmt = stmt.order_by(Game.start_time.asc())
+    stmt = stmt.limit(limit)
     result = await db.execute(stmt)
     return [serialize_game(game) for game in result.scalars().all()]
 

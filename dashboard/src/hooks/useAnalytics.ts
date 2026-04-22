@@ -51,6 +51,16 @@ export function useAnalysisByMarketCategory() {
   });
 }
 
+export function useRecentEventAudit() {
+  return useQuery({
+    queryKey: ["analysis", "recent-event-audit"],
+    queryFn: api.recentEventAudit,
+    refetchInterval: 30_000,
+    staleTime: 25_000,
+    placeholderData: keepPreviousData,
+  });
+}
+
 export function useKellyComparison() {
   return useQuery({
     queryKey: ["analysis", "kelly-comparison"],
