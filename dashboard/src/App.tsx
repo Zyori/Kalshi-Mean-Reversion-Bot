@@ -7,6 +7,7 @@ import { AnalyticsPage } from "./pages/AnalyticsPage";
 import { DataPage } from "./pages/DataPage";
 import { LoginPage } from "./pages/LoginPage";
 import { PublicStatusPage } from "./pages/PublicStatusPage";
+import { StrategyPage } from "./pages/StrategyPage";
 import { useAuth } from "./hooks/useAuth";
 
 const queryClient = new QueryClient({
@@ -39,6 +40,7 @@ function ProtectedRoutes() {
         <Route path="data" element={<DataPage />} />
         <Route path="trades" element={<TradesPage />} />
         <Route path="analytics" element={<AnalyticsPage />} />
+        <Route path="strategy" element={<StrategyPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

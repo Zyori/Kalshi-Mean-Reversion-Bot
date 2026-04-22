@@ -13,6 +13,46 @@ def score_deficit(home_score: int, away_score: int) -> int:
     return abs(home_score - away_score)
 
 
+STRUCTURAL_EVENT_TOKENS: tuple[str, ...] = (
+    "red card",
+    "goalie pulled",
+    "empty net",
+    "injury",
+    "ejection",
+    "disqualification",
+    "knockout",
+)
+
+HIGH_LEVERAGE_EVENT_TOKENS: tuple[str, ...] = (
+    "timeout",
+    "technical",
+    "flagrant",
+    "turnover",
+    "steal",
+    "interception",
+    "fumble",
+    "red zone",
+    "penalty",
+)
+
+SCORING_EVENT_TOKENS: tuple[str, ...] = (
+    "goal",
+    "home run",
+    "touchdown",
+    "field goal",
+    "safety",
+    "double",
+    "triple",
+    "single",
+    "walk",
+    "layup",
+    "jumper",
+    "three point",
+    "free throw",
+    "dunk",
+)
+
+
 SPORT_SEGMENTS: dict[str, int] = {
     "nhl": 3,
     "nba": 4,
@@ -88,51 +128,15 @@ def parse_progress(sport: str, period: str) -> float:
 
 
 def is_structural_event(event_text: str) -> bool:
-    tokens = (
-        "red card",
-        "goalie pulled",
-        "empty net",
-        "injury",
-        "ejection",
-        "disqualification",
-        "knockout",
-    )
-    return any(token in event_text for token in tokens)
+    return any(token in event_text for token in STRUCTURAL_EVENT_TOKENS)
 
 
 def is_high_leverage_event(event_text: str) -> bool:
-    tokens = (
-        "timeout",
-        "technical",
-        "flagrant",
-        "turnover",
-        "steal",
-        "interception",
-        "fumble",
-        "red zone",
-        "penalty",
-    )
-    return any(token in event_text for token in tokens)
+    return any(token in event_text for token in HIGH_LEVERAGE_EVENT_TOKENS)
 
 
 def is_scoring_event(event_text: str) -> bool:
-    tokens = (
-        "goal",
-        "home run",
-        "touchdown",
-        "field goal",
-        "safety",
-        "double",
-        "triple",
-        "single",
-        "walk",
-        "layup",
-        "jumper",
-        "three point",
-        "free throw",
-        "dunk",
-    )
-    return any(token in event_text for token in tokens)
+    return any(token in event_text for token in SCORING_EVENT_TOKENS)
 
 
 def classify_spread_reversion(

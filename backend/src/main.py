@@ -59,6 +59,7 @@ from src.api.routes.events import router as events_router  # noqa: E402
 from src.api.routes.games import router as games_router  # noqa: E402
 from src.api.routes.health import router as health_router  # noqa: E402
 from src.api.routes.public import router as public_router  # noqa: E402
+from src.api.routes.strategy import router as strategy_router  # noqa: E402
 from src.api.routes.trades import router as trades_router  # noqa: E402
 
 # Unauthenticated
@@ -73,3 +74,4 @@ app.include_router(events_router, dependencies=_auth)
 app.include_router(trades_router, dependencies=_auth)
 app.include_router(analysis_router, dependencies=_auth)
 app.include_router(config_router, dependencies=_auth)
+app.include_router(strategy_router, dependencies=_auth)

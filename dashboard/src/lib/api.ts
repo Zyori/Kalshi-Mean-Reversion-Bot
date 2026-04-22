@@ -223,6 +223,58 @@ export interface PublicStatus {
   sources_total: number;
 }
 
+export interface StrategyPolicyMarket {
+  market_category: string;
+  source: string;
+  summary: string;
+  confidence_threshold: number;
+  deviation_threshold: number;
+}
+
+export interface StrategySportMarket {
+  market_category: string;
+  summary: string;
+  candidate_edge_min?: number;
+  candidate_edge_max?: number;
+  structural_edge?: number;
+}
+
+export interface StrategySport {
+  sport: string;
+  display_name: string;
+  segments: number;
+  summary: string;
+  moneyline: {
+    summary: string;
+    params: Record<string, number>;
+  };
+  markets: StrategySportMarket[];
+}
+
+export interface StrategyCatalog {
+  platform_timezone: string;
+  collection: {
+    schedule_poll_interval_s: number;
+    pregame_poll_interval_s: number;
+    live_scoreboard_poll_interval_s: number;
+    live_events_poll_interval_s: number;
+    note: string;
+  };
+  trade_policy: {
+    paper_bankroll_start_cents: number;
+    max_open_per_market: number;
+    reentry_min_price_move_cents: number;
+    markets: StrategyPolicyMarket[];
+    notes: string[];
+  };
+  event_filters: {
+    scoring_tokens: string[];
+    high_leverage_tokens: string[];
+    structural_shift_tokens: string[];
+  };
+  sports: StrategySport[];
+}
+
 export const api = {
   login: (password: string) => post<{ ok: true }>("/auth/login", { password }),
   logout: () => post<{ ok: true }>("/auth/logout"),
@@ -296,6 +348,7 @@ export const api = {
     get<DecisionSummaryRow[]>("/analysis/decision-summary"),
   equityCurve: () => get<EquityPoint[]>("/analysis/equity-curve"),
   kellyComparison: () => get<KellyPoint[]>("/analysis/kelly-comparison"),
+  strategy: () => get<StrategyCatalog>("/strategy"),
   insights: (status?: string) => {
     const qs = status ? `?status=${status}` : "";
     return get<Insight[]>(`/insights${qs}`);

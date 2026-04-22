@@ -5,24 +5,41 @@ from src.config import settings
 from src.models.trade import PaperTrade
 
 
-def _confidence_threshold(market_category: str | None) -> float:
-    thresholds = {
-        "moneyline": settings.paper_trade_min_confidence_moneyline,
-        "spread": settings.paper_trade_min_confidence_spread,
-        "total": settings.paper_trade_min_confidence_total,
-        "team_total": settings.paper_trade_min_confidence_total,
+def get_trade_gate_settings() -> dict[str, dict[str, float]]:
+    return {
+        "moneyline": {
+            "confidence": settings.paper_trade_min_confidence_moneyline,
+            "deviation": settings.paper_trade_min_deviation_moneyline,
+        },
+        "spread": {
+            "confidence": settings.paper_trade_min_confidence_spread,
+            "deviation": settings.paper_trade_min_deviation_spread,
+        },
+        "total": {
+            "confidence": settings.paper_trade_min_confidence_total,
+            "deviation": settings.paper_trade_min_deviation_total,
+        },
+        "team_total": {
+            "confidence": settings.paper_trade_min_confidence_total,
+            "deviation": settings.paper_trade_min_deviation_total,
+        },
     }
-    return thresholds.get(market_category or "", settings.paper_trade_min_confidence)
+
+
+def _confidence_threshold(market_category: str | None) -> float:
+    thresholds = get_trade_gate_settings()
+    return thresholds.get(market_category or "", {}).get(
+        "confidence",
+        settings.paper_trade_min_confidence,
+    )
 
 
 def _deviation_threshold(market_category: str | None) -> float:
-    thresholds = {
-        "moneyline": settings.paper_trade_min_deviation_moneyline,
-        "spread": settings.paper_trade_min_deviation_spread,
-        "total": settings.paper_trade_min_deviation_total,
-        "team_total": settings.paper_trade_min_deviation_total,
-    }
-    return thresholds.get(market_category or "", settings.paper_trade_min_deviation)
+    thresholds = get_trade_gate_settings()
+    return thresholds.get(market_category or "", {}).get(
+        "deviation",
+        settings.paper_trade_min_deviation,
+    )
 
 
 async def evaluate_trade_gate(
