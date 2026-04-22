@@ -13,6 +13,7 @@ from src.ingestion.kalshi_rest import KalshiRestClient
 from src.ingestion.odds import OddsApiPoller
 from src.paper_trader.portfolio import Portfolio
 from src.paper_trader.simulator import PaperTradeSimulator
+from src.services.decision_service import record_trade_decision
 from src.services.ingestion_service import (
     record_game_event,
     record_opening_line,
@@ -177,6 +178,15 @@ async def _trader_loop(
                 if trade:
                     skip_reason = await evaluate_trade_gate(db, opportunity, trade)
                     if skip_reason:
+                        await record_trade_decision(
+                            db,
+                            event=opportunity,
+                            trade=trade,
+                            action="skipped",
+                            skip_reason=skip_reason,
+                            summary=trade.get("reasoning"),
+                        )
+                        await db.commit()
                         logger.info(
                             "paper_trade_skipped",
                             market_id=opportunity.get("market_id"),
@@ -190,6 +200,13 @@ async def _trader_loop(
                         trade,
                         game_event_id=trade.get("game_event_id"),
                     )
+                    await record_trade_decision(
+                        db,
+                        event=opportunity,
+                        trade=trade,
+                        action="opened",
+                        summary=trade.get("reasoning"),
+                    )
                     await db.commit()
                     logger.info(
                         "paper_trade_opened",
@@ -200,6 +217,14 @@ async def _trader_loop(
                         size=trade["kelly_size_cents"],
                     )
                 else:
+                    await record_trade_decision(
+                        db,
+                        event=opportunity,
+                        trade=None,
+                        action="skipped",
+                        skip_reason="simulator_rejected",
+                    )
+                    await db.commit()
                     logger.info(
                         "paper_trade_skipped",
                         market_id=opportunity.get("market_id"),

@@ -4,6 +4,8 @@ import {
   useAnalysisByEventType,
   useAnalysisByMarketCategory,
   useRecentEventAudit,
+  useSkipReasons,
+  useDecisionSummary,
   useEquityCurve,
   useKellyComparison,
   useInsights,
@@ -37,6 +39,8 @@ export function AnalyticsPage() {
   const { data: byEventType } = useAnalysisByEventType();
   const { data: byMarketCategory } = useAnalysisByMarketCategory();
   const { data: eventAudit } = useRecentEventAudit();
+  const { data: skipReasons } = useSkipReasons();
+  const { data: decisionSummary } = useDecisionSummary();
   const { data: equity } = useEquityCurve();
   const { data: kelly } = useKellyComparison();
   const { data: insights } = useInsights();
@@ -65,7 +69,7 @@ export function AnalyticsPage() {
           <StatCard
             label="Win Rate"
             value={formatPercent(summary.win_rate)}
-            subtext={`${summary.wins}W / ${summary.losses}L`}
+            subtext={`${summary.wins}W / ${summary.losses}L / ${summary.pushes}P`}
             className={
               summary.win_rate > 0.5
                 ? "text-profit"
@@ -83,7 +87,7 @@ export function AnalyticsPage() {
           <StatCard
             label="Resolved"
             value={String(summary.resolved)}
-            subtext={`${summary.total_trades - summary.resolved} pending`}
+            subtext={`${summary.open} pending`}
           />
           <StatCard
             label="Mock Bank"
@@ -190,6 +194,56 @@ export function AnalyticsPage() {
           </div>
         )}
       </Card>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <h3 className="mb-3 text-sm font-medium text-text-dim">
+            Trade Decisions
+          </h3>
+          {!decisionSummary || decisionSummary.length === 0 ? (
+            <p className="text-sm text-text-dim">No trade decision data yet</p>
+          ) : (
+            <div className="space-y-2">
+              {decisionSummary.map((row) => (
+                <div
+                  key={`${row.market_category}-${row.action}`}
+                  className="flex items-center justify-between rounded-md bg-surface-2 px-3 py-2"
+                >
+                  <div>
+                    <p className="text-sm font-medium uppercase">{row.market_category}</p>
+                    <p className="text-xs text-text-dim">{row.action}</p>
+                  </div>
+                  <span className="font-mono text-sm">{row.count}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        <Card>
+          <h3 className="mb-3 text-sm font-medium text-text-dim">
+            Skip Reasons
+          </h3>
+          {!skipReasons || skipReasons.length === 0 ? (
+            <p className="text-sm text-text-dim">No skipped trade data yet</p>
+          ) : (
+            <div className="space-y-2">
+              {skipReasons.slice(0, 10).map((row) => (
+                <div
+                  key={`${row.market_category}-${row.skip_reason}`}
+                  className="flex items-center justify-between rounded-md bg-surface-2 px-3 py-2"
+                >
+                  <div>
+                    <p className="text-sm font-medium">{row.skip_reason}</p>
+                    <p className="text-xs uppercase text-text-dim">{row.market_category}</p>
+                  </div>
+                  <span className="font-mono text-sm">{row.count}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
 
       {insights && insights.length > 0 && (
         <Card>

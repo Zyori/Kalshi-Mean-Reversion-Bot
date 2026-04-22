@@ -61,6 +61,26 @@ export function useRecentEventAudit() {
   });
 }
 
+export function useSkipReasons() {
+  return useQuery({
+    queryKey: ["analysis", "skip-reasons"],
+    queryFn: api.skipReasons,
+    refetchInterval: 30_000,
+    staleTime: 25_000,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useDecisionSummary() {
+  return useQuery({
+    queryKey: ["analysis", "decision-summary"],
+    queryFn: api.decisionSummary,
+    refetchInterval: 30_000,
+    staleTime: 25_000,
+    placeholderData: keepPreviousData,
+  });
+}
+
 export function useKellyComparison() {
   return useQuery({
     queryKey: ["analysis", "kelly-comparison"],

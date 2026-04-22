@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload
 from src.api.dependencies import get_db
 from src.config import settings
 from src.models.analysis import Insight
+from src.models.decision import TradeDecision
 from src.models.game import GameEvent
 from src.models.trade import PaperTrade
 
@@ -34,6 +35,9 @@ async def analysis_summary(db: AsyncSession = Depends(get_db)):
     losses = await db.scalar(
         select(func.count(PaperTrade.id)).where(PaperTrade.status == "resolved_loss")
     )
+    pushes = await db.scalar(
+        select(func.count(PaperTrade.id)).where(PaperTrade.status == "resolved_push")
+    )
     total_pnl = await db.scalar(select(func.sum(PaperTrade.pnl_cents))) or 0
     pending_wagers = await db.scalar(
         select(func.sum(PaperTrade.kelly_size_cents)).where(PaperTrade.status == "open")
@@ -42,7 +46,7 @@ async def analysis_summary(db: AsyncSession = Depends(get_db)):
         select(func.count(PaperTrade.id)).where(PaperTrade.status == "open")
     )
 
-    resolved = (wins or 0) + (losses or 0)
+    resolved = (wins or 0) + (losses or 0) + (pushes or 0)
     win_rate = (wins or 0) / resolved if resolved > 0 else 0.0
     starting_bankroll = settings.paper_bankroll_start_cents
     current_bankroll = starting_bankroll + total_pnl
@@ -54,6 +58,7 @@ async def analysis_summary(db: AsyncSession = Depends(get_db)):
         "resolved": resolved,
         "wins": wins or 0,
         "losses": losses or 0,
+        "pushes": pushes or 0,
         "win_rate": round(win_rate, 4),
         "total_pnl_cents": total_pnl,
         "starting_bankroll_cents": starting_bankroll,
@@ -150,6 +155,53 @@ async def recent_event_audit(limit: int = 500, db: AsyncSession = Depends(get_db
         for (market_category, classification), count in buckets.items()
     ]
     rows.sort(key=lambda row: (row["market_category"], -row["count"], row["classification"]))
+    return rows
+
+
+@router.get("/analysis/skip-reasons")
+async def analysis_skip_reasons(db: AsyncSession = Depends(get_db)):
+    stmt = (
+        select(
+            TradeDecision.market_category,
+            TradeDecision.skip_reason,
+            func.count(TradeDecision.id).label("count"),
+        )
+        .where(TradeDecision.action == "skipped", TradeDecision.skip_reason.isnot(None))
+        .group_by(TradeDecision.market_category, TradeDecision.skip_reason)
+    )
+    result = await db.execute(stmt)
+    rows = [
+        {
+            "market_category": row.market_category,
+            "skip_reason": row.skip_reason,
+            "count": row.count,
+        }
+        for row in result
+    ]
+    rows.sort(key=lambda row: (row["market_category"], -row["count"], row["skip_reason"]))
+    return rows
+
+
+@router.get("/analysis/decision-summary")
+async def analysis_decision_summary(db: AsyncSession = Depends(get_db)):
+    stmt = (
+        select(
+            TradeDecision.market_category,
+            TradeDecision.action,
+            func.count(TradeDecision.id).label("count"),
+        )
+        .group_by(TradeDecision.market_category, TradeDecision.action)
+    )
+    result = await db.execute(stmt)
+    rows = [
+        {
+            "market_category": row.market_category,
+            "action": row.action,
+            "count": row.count,
+        }
+        for row in result
+    ]
+    rows.sort(key=lambda row: (row["market_category"], row["action"]))
     return rows
 
 

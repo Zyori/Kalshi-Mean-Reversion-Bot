@@ -149,6 +149,7 @@ export interface AnalysisSummary {
   resolved: number;
   wins: number;
   losses: number;
+  pushes: number;
   win_rate: number;
   total_pnl_cents: number;
   starting_bankroll_cents: number;
@@ -178,6 +179,18 @@ export interface MarketCategoryBreakdown {
 export interface EventAuditRow {
   market_category: string;
   classification: string;
+  count: number;
+}
+
+export interface SkipReasonRow {
+  market_category: string;
+  skip_reason: string;
+  count: number;
+}
+
+export interface DecisionSummaryRow {
+  market_category: string;
+  action: string;
   count: number;
 }
 
@@ -277,6 +290,10 @@ export const api = {
     get<MarketCategoryBreakdown[]>("/analysis/by-market-category"),
   recentEventAudit: () =>
     get<EventAuditRow[]>("/analysis/recent-event-audit"),
+  skipReasons: () =>
+    get<SkipReasonRow[]>("/analysis/skip-reasons"),
+  decisionSummary: () =>
+    get<DecisionSummaryRow[]>("/analysis/decision-summary"),
   equityCurve: () => get<EquityPoint[]>("/analysis/equity-curve"),
   kellyComparison: () => get<KellyPoint[]>("/analysis/kelly-comparison"),
   insights: (status?: string) => {
