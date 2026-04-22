@@ -25,6 +25,7 @@ from src.services.paper_runtime import (
     persist_trade,
     resolve_game_trades,
 )
+from src.services.trade_policy_service import evaluate_trade_gate
 from src.strategy.detector import EventDetector
 
 logger = get_logger(__name__)
@@ -155,9 +156,19 @@ async def _trader_loop(
     while True:
         try:
             opportunity = await trade_queue.get()
-            trade = simulator.evaluate_opportunity(opportunity)
-            if trade:
-                async with session_factory() as db:
+            async with session_factory() as db:
+                skip_reason = await evaluate_trade_gate(db, opportunity)
+                if skip_reason:
+                    logger.info(
+                        "paper_trade_skipped",
+                        market_id=opportunity.get("market_id"),
+                        game_event_id=opportunity.get("game_event_id"),
+                        reason=skip_reason,
+                    )
+                    continue
+
+                trade = simulator.evaluate_opportunity(opportunity)
+                if trade:
                     record = await persist_trade(
                         db,
                         trade,
@@ -170,6 +181,13 @@ async def _trader_loop(
                         sport=trade.get("sport"),
                         side=trade.get("side"),
                         size=trade["kelly_size_cents"],
+                    )
+                else:
+                    logger.info(
+                        "paper_trade_skipped",
+                        market_id=opportunity.get("market_id"),
+                        game_event_id=opportunity.get("game_event_id"),
+                        reason="simulator_rejected",
                     )
         except Exception:
             logger.exception("trader_loop_error")

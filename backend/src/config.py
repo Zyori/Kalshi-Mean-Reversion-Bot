@@ -38,6 +38,8 @@ class Settings(BaseSettings):
     events_poll_interval_s: float = 15.0
     kalshi_market_cache_ttl_s: float = 300.0
     paper_bankroll_start_cents: int = 100000
+    paper_trade_min_confidence: float = 0.35
+    paper_trade_min_deviation: float = 0.08
 
     @field_validator("kalshi_private_key_path")
     @classmethod
