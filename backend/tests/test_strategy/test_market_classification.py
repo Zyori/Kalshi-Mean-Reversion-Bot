@@ -52,6 +52,24 @@ def test_spread_large_late_move_becomes_structural_shift() -> None:
     assert result == "structural_shift"
 
 
+def test_team_total_market_can_flag_reversion_candidate() -> None:
+    clf = EventClassifier()
+    result = clf.classify(
+        sport="mlb",
+        event_type="Walk",
+        description="Bases-loaded walk keeps the inning alive",
+        home_score=2,
+        away_score=1,
+        period="5",
+        baseline_prob=0.5,
+        is_home_favorite=True,
+        market_category="team_total",
+        opening_team_total=4.5,
+        team_total_side="home",
+    )
+    assert result == "reversion_candidate"
+
+
 def test_total_without_opening_total_stays_neutral() -> None:
     clf = EventClassifier()
     result = clf.classify(
@@ -65,5 +83,23 @@ def test_total_without_opening_total_stays_neutral() -> None:
         is_home_favorite=True,
         market_category="total",
         opening_total=None,
+    )
+    assert result == "neutral"
+
+
+def test_team_total_without_line_stays_neutral() -> None:
+    clf = EventClassifier()
+    result = clf.classify(
+        sport="nba",
+        event_type="Timeout",
+        description="Timeout after a quick run",
+        home_score=22,
+        away_score=19,
+        period="1",
+        baseline_prob=0.5,
+        is_home_favorite=True,
+        market_category="team_total",
+        opening_team_total=None,
+        team_total_side="home",
     )
     assert result == "neutral"

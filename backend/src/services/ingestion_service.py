@@ -341,6 +341,9 @@ async def record_game_event(db: AsyncSession, payload: dict) -> GameEvent | None
             "market_source": payload.get("market_source"),
             "market_label_yes": payload.get("market_label_yes"),
             "market_label_no": payload.get("market_label_no"),
+            "team_total_side": payload.get("team_total_side"),
+            "team_total_team": payload.get("team_total_team"),
+            "opening_team_total": payload.get("opening_team_total"),
         }
     else:
         stored_espn_data = {
@@ -348,6 +351,9 @@ async def record_game_event(db: AsyncSession, payload: dict) -> GameEvent | None
             "market_source": payload.get("market_source"),
             "market_label_yes": payload.get("market_label_yes"),
             "market_label_no": payload.get("market_label_no"),
+            "team_total_side": payload.get("team_total_side"),
+            "team_total_team": payload.get("team_total_team"),
+            "opening_team_total": payload.get("opening_team_total"),
         }
 
     event = GameEvent(

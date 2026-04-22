@@ -58,6 +58,24 @@ TOTAL_STRUCTURAL_EDGES: dict[str, float] = {
     "ufc": 1.5,
 }
 
+TEAM_TOTAL_CANDIDATE_EDGES: dict[str, tuple[float, float]] = {
+    "nhl": (0.5, 1.5),
+    "nba": (4.0, 12.0),
+    "mlb": (0.5, 2.0),
+    "nfl": (2.0, 8.0),
+    "soccer": (0.4, 1.0),
+    "ufc": (0.5, 1.0),
+}
+
+TEAM_TOTAL_STRUCTURAL_EDGES: dict[str, float] = {
+    "nhl": 2.0,
+    "nba": 16.0,
+    "mlb": 3.0,
+    "nfl": 10.0,
+    "soccer": 1.5,
+    "ufc": 1.5,
+}
+
 
 def parse_progress(sport: str, period: str) -> float:
     try:
@@ -175,6 +193,47 @@ def classify_total_reversion(
     total_edge = abs(projected_total - float(opening_total))
     min_edge, max_edge = TOTAL_CANDIDATE_EDGES.get(sport, (2.0, 8.0))
     structural_edge = TOTAL_STRUCTURAL_EDGES.get(sport, 10.0)
+
+    if progress >= 0.75 and total_edge >= structural_edge:
+        return "structural_shift"
+
+    if progress > 0.85:
+        return "neutral"
+
+    if (
+        min_edge <= total_edge <= max_edge
+        and (is_scoring_event(event_text) or is_high_leverage_event(event_text))
+    ):
+        return "reversion_candidate"
+
+    return "neutral"
+
+
+def classify_team_total_reversion(
+    *,
+    sport: str,
+    event_text: str,
+    home_score: int,
+    away_score: int,
+    period: str,
+    opening_team_total: float | None,
+    team_total_side: str | None,
+) -> str:
+    if opening_team_total is None or team_total_side not in {"home", "away"}:
+        return "neutral"
+
+    if is_structural_event(event_text):
+        return "structural_shift"
+
+    progress = parse_progress(sport, period)
+    if progress <= 0.1:
+        return "neutral"
+
+    team_score = home_score if team_total_side == "home" else away_score
+    projected_total = team_score / max(progress, 0.15)
+    total_edge = abs(projected_total - float(opening_team_total))
+    min_edge, max_edge = TEAM_TOTAL_CANDIDATE_EDGES.get(sport, (1.0, 4.0))
+    structural_edge = TEAM_TOTAL_STRUCTURAL_EDGES.get(sport, 6.0)
 
     if progress >= 0.75 and total_edge >= structural_edge:
         return "structural_shift"

@@ -10,6 +10,7 @@ def _confidence_threshold(market_category: str | None) -> float:
         "moneyline": settings.paper_trade_min_confidence_moneyline,
         "spread": settings.paper_trade_min_confidence_spread,
         "total": settings.paper_trade_min_confidence_total,
+        "team_total": settings.paper_trade_min_confidence_total,
     }
     return thresholds.get(market_category or "", settings.paper_trade_min_confidence)
 
@@ -19,6 +20,7 @@ def _deviation_threshold(market_category: str | None) -> float:
         "moneyline": settings.paper_trade_min_deviation_moneyline,
         "spread": settings.paper_trade_min_deviation_spread,
         "total": settings.paper_trade_min_deviation_total,
+        "team_total": settings.paper_trade_min_deviation_total,
     }
     return thresholds.get(market_category or "", settings.paper_trade_min_deviation)
 

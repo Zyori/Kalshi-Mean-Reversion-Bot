@@ -28,6 +28,14 @@ SYNTHETIC_MARKETS: dict[str, dict[str, str]] = {
         "market_type": "synthetic_total_over",
         "ticker_prefix": "SYN-TOTALOVER",
     },
+    "team_total_home": {
+        "market_type": "synthetic_home_team_total_over",
+        "ticker_prefix": "SYN-HOMETEAMTOTAL",
+    },
+    "team_total_away": {
+        "market_type": "synthetic_away_team_total_over",
+        "ticker_prefix": "SYN-AWAYTEAMTOTAL",
+    },
 }
 
 SCORE_IMPACT_WEIGHTS: dict[str, float] = {
@@ -54,6 +62,15 @@ TOTAL_IMPACT_WEIGHTS: dict[str, float] = {
     "mlb": 0.07,
     "nfl": 0.02,
     "soccer": 0.12,
+    "ufc": 0.10,
+}
+
+TEAM_TOTAL_IMPACT_WEIGHTS: dict[str, float] = {
+    "nhl": 0.10,
+    "nba": 0.02,
+    "mlb": 0.09,
+    "nfl": 0.03,
+    "soccer": 0.14,
     "ufc": 0.10,
 }
 
@@ -144,12 +161,42 @@ def estimate_synthetic_total_price(game: Game, event: dict[str, Any]) -> int | N
     return round(price * 100)
 
 
+def estimate_synthetic_team_total_price(
+    game: Game,
+    event: dict[str, Any],
+    *,
+    market_variant: str,
+) -> int | None:
+    if market_variant == "home":
+        opening_team_total = game.opening_home_team_total
+        team_score = int(event.get("home_score") or 0)
+    else:
+        opening_team_total = game.opening_away_team_total
+        team_score = int(event.get("away_score") or 0)
+
+    if opening_team_total is None:
+        return None
+
+    progress = _game_progress(game.sport, event.get("period"))
+    if progress <= 0:
+        return 50
+
+    projected_total = team_score / max(progress, 0.15)
+    total_edge = projected_total - float(opening_team_total)
+    weight = TEAM_TOTAL_IMPACT_WEIGHTS.get(game.sport, 0.03)
+    price = _clamp_probability(0.5 + total_edge * weight * max(progress, 0.25))
+    return round(price * 100)
+
+
 async def get_game_by_espn_id(db: AsyncSession, espn_id: str) -> Game | None:
     result = await db.execute(select(Game).where(Game.espn_id == espn_id))
     return result.scalar_one_or_none()
 
 
-def _market_spec(market_category: str) -> dict[str, str]:
+def _market_spec(market_category: str, market_variant: str | None = None) -> dict[str, str]:
+    if market_category == "team_total":
+        key = f"team_total_{market_variant or 'home'}"
+        return SYNTHETIC_MARKETS[key]
     return SYNTHETIC_MARKETS.get(market_category, SYNTHETIC_MARKETS["moneyline"])
 
 
@@ -157,8 +204,10 @@ async def ensure_synthetic_market(
     db: AsyncSession,
     game: Game,
     market_category: str,
+    *,
+    market_variant: str | None = None,
 ) -> Market:
-    spec = _market_spec(market_category)
+    spec = _market_spec(market_category, market_variant)
     ticker = f"{spec['ticker_prefix']}-{game.id}"
     result = await db.execute(select(Market).where(Market.kalshi_ticker == ticker))
     market = result.scalar_one_or_none()
@@ -174,7 +223,11 @@ async def ensure_synthetic_market(
     return market
 
 
-def _market_labels(game: Game, market_category: str) -> tuple[str, str]:
+def _market_labels(
+    game: Game,
+    market_category: str,
+    market_variant: str | None = None,
+) -> tuple[str, str]:
     if market_category == "spread":
         home_line = game.opening_spread_home
         away_line = game.opening_spread_away
@@ -186,6 +239,15 @@ def _market_labels(game: Game, market_category: str) -> tuple[str, str]:
         total = game.opening_total
         total_text = f"{total:.1f}" if total is not None else "--"
         return (f"Over {total_text}", f"Under {total_text}")
+    if market_category == "team_total":
+        if market_variant == "home":
+            team_name = game.home_team
+            total = game.opening_home_team_total
+        else:
+            team_name = game.away_team
+            total = game.opening_away_team_total
+        total_text = f"{total:.1f}" if total is not None else "--"
+        return (f"{team_name} Over {total_text}", f"{team_name} Under {total_text}")
     return (game.home_team, game.away_team)
 
 
@@ -195,13 +257,26 @@ async def attach_synthetic_market_context(
     event: dict[str, Any],
     *,
     market_category: str = "moneyline",
+    market_variant: str | None = None,
 ) -> dict[str, Any]:
-    market = await ensure_synthetic_market(db, game, market_category)
+    market = await ensure_synthetic_market(
+        db,
+        game,
+        market_category,
+        market_variant=market_variant,
+    )
     if market_category == "spread":
         yes_price = estimate_synthetic_spread_price(game, event)
         fair_prob_yes = 0.5
     elif market_category == "total":
         yes_price = estimate_synthetic_total_price(game, event)
+        fair_prob_yes = 0.5
+    elif market_category == "team_total":
+        yes_price = estimate_synthetic_team_total_price(
+            game,
+            event,
+            market_variant=market_variant or "home",
+        )
         fair_prob_yes = 0.5
     else:
         yes_price = estimate_synthetic_home_price(game, event)
@@ -210,7 +285,7 @@ async def attach_synthetic_market_context(
     if yes_price is None:
         return event
 
-    yes_label, no_label = _market_labels(game, market_category)
+    yes_label, no_label = _market_labels(game, market_category, market_variant)
     event["market_id"] = market.id
     event["market_type"] = market.market_type
     event["market_category"] = market_category
@@ -227,6 +302,15 @@ async def attach_synthetic_market_context(
     event["opening_spread_home"] = game.opening_spread_home
     event["opening_spread_away"] = game.opening_spread_away
     event["opening_total"] = game.opening_total
+    if market_category == "team_total":
+        team_total_side = market_variant or "home"
+        event["team_total_side"] = team_total_side
+        event["team_total_team"] = game.home_team if team_total_side == "home" else game.away_team
+        event["opening_team_total"] = (
+            game.opening_home_team_total
+            if team_total_side == "home"
+            else game.opening_away_team_total
+        )
     event["ask_depth"] = 25
 
     snapshot = MarketSnapshot(
@@ -250,21 +334,26 @@ async def attach_synthetic_market_contexts(
     include_moneyline: bool,
 ) -> list[dict[str, Any]]:
     payloads: list[dict[str, Any]] = []
-    categories: list[str] = []
+    categories: list[tuple[str, str | None]] = []
     if include_moneyline:
-        categories.append("moneyline")
+        categories.append(("moneyline", None))
     if game.opening_spread_home is not None:
-        categories.append("spread")
+        categories.append(("spread", None))
     if game.opening_total is not None:
-        categories.append("total")
+        categories.append(("total", None))
+    if game.opening_home_team_total is not None:
+        categories.append(("team_total", "home"))
+    if game.opening_away_team_total is not None:
+        categories.append(("team_total", "away"))
 
-    for market_category in categories:
+    for market_category, market_variant in categories:
         payload = dict(event)
         enriched = await attach_synthetic_market_context(
             db,
             game,
             payload,
             market_category=market_category,
+            market_variant=market_variant,
         )
         if enriched.get("market_id") is not None:
             payloads.append(enriched)
@@ -377,6 +466,18 @@ async def resolve_game_trades(
                 won = False
             else:
                 yes_wins = total_points > float(total_line)
+                won = yes_wins if trade.side == "yes" else not yes_wins
+        elif trade.market_category == "team_total":
+            team_total_line = context.get("opening_team_total")
+            team_total_side = context.get("team_total_side")
+            if team_total_line is None or team_total_side not in {"home", "away"}:
+                continue
+            team_score = final_home if team_total_side == "home" else final_away
+            if abs(team_score - float(team_total_line)) < 1e-9:
+                push = True
+                won = False
+            else:
+                yes_wins = team_score > float(team_total_line)
                 won = yes_wins if trade.side == "yes" else not yes_wins
         else:
             won = home_wins if trade.side == "yes" else not home_wins

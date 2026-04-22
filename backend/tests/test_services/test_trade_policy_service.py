@@ -246,3 +246,20 @@ async def test_trade_gate_still_blocks_weak_total_signal(db_session_factory):
             {"side": "yes", "entry_price": 44, "market_category": "total"},
         )
         assert reason in {"confidence_below_threshold", "deviation_below_threshold"}
+
+
+async def test_trade_gate_uses_total_thresholds_for_team_total(db_session_factory):
+    async with db_session_factory() as db:
+        market = await _seed_market(db)
+        reason = await evaluate_trade_gate(
+            db,
+            {
+                "classification": "reversion_candidate",
+                "market_id": market.id,
+                "game_event_id": 12,
+                "confidence_score": 0.29,
+                "deviation": 0.05,
+            },
+            {"side": "yes", "entry_price": 44, "market_category": "team_total"},
+        )
+        assert reason is None

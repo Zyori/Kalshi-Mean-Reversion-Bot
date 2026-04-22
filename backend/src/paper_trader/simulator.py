@@ -44,6 +44,11 @@ def _market_context_text(event: dict[str, Any], market_category: str) -> str:
         total = event.get("opening_total")
         if total is not None:
             return f"opening total {total:.1f}"
+    if market_category == "team_total":
+        team = event.get("team_total_team") or "team"
+        total = event.get("opening_team_total")
+        if total is not None:
+            return f"{team} team total {total:.1f}"
     return "opening moneyline baseline"
 
 

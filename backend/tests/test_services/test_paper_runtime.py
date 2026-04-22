@@ -41,6 +41,8 @@ async def test_attach_synthetic_market_contexts_builds_multiple_market_views(db_
             opening_spread_home=-4.5,
             opening_spread_away=4.5,
             opening_total=221.5,
+            opening_home_team_total=112.5,
+            opening_away_team_total=109.0,
         )
         db.add(game)
         await db.flush()
@@ -59,8 +61,9 @@ async def test_attach_synthetic_market_contexts_builds_multiple_market_views(db_
             include_moneyline=True,
         )
 
-        categories = {payload["market_category"] for payload in payloads}
-        assert categories == {"moneyline", "spread", "total"}
+        categories = [payload["market_category"] for payload in payloads]
+        assert categories.count("team_total") == 2
+        assert set(categories) == {"moneyline", "spread", "total", "team_total"}
         total_payload = next(
             payload
             for payload in payloads
@@ -68,6 +71,13 @@ async def test_attach_synthetic_market_contexts_builds_multiple_market_views(db_
         )
         assert total_payload["market_label_yes"] == "Over 221.5"
         assert total_payload["market_label_no"] == "Under 221.5"
+        team_total_payload = next(
+            payload
+            for payload in payloads
+            if payload["market_category"] == "team_total" and payload["team_total_side"] == "home"
+        )
+        assert team_total_payload["market_label_yes"] == "Boston Celtics Over 112.5"
+        assert team_total_payload["market_label_no"] == "Boston Celtics Under 112.5"
 
 
 async def test_resolve_game_trades_settles_spread_total_and_pushes(db_session_factory):
@@ -209,3 +219,82 @@ async def test_restore_portfolio_state_uses_db_bankroll_and_open_positions(db_se
         assert portfolio.bankroll_cents == 102200
         assert portfolio.open_count == 1
         assert portfolio.pending_wagers_cents == 2500
+
+
+async def test_resolve_game_trades_settles_team_total_markets(db_session_factory):
+    async with db_session_factory() as db:
+        game = Game(
+            sport="nba",
+            home_team="Boston Celtics",
+            away_team="New York Knicks",
+            start_time=datetime(2026, 4, 22, 23, 0, tzinfo=UTC),
+            status="STATUS_FINAL",
+            final_home_score=118,
+            final_away_score=104,
+            opening_home_team_total=112.5,
+            opening_away_team_total=108.5,
+        )
+        db.add(game)
+        await db.flush()
+
+        payloads = await attach_synthetic_market_contexts(
+            db,
+            game,
+            {
+                "sport": "nba",
+                "espn_id": "401000001",
+                "event_type": "Timeout",
+                "home_score": 60,
+                "away_score": 48,
+                "period": "3",
+            },
+            include_moneyline=False,
+        )
+
+        home_team_total = next(
+            item
+            for item in payloads
+            if item["market_category"] == "team_total" and item["team_total_side"] == "home"
+        )
+        away_team_total = next(
+            item
+            for item in payloads
+            if item["market_category"] == "team_total" and item["team_total_side"] == "away"
+        )
+
+        db.add_all(
+            [
+                PaperTrade(
+                    market_id=home_team_total["market_id"],
+                    sport="nba",
+                    market_category="team_total",
+                    side="yes",
+                    entry_price=43,
+                    entry_price_adj=44,
+                    slippage_cents=1,
+                    kelly_size_cents=2500,
+                    status="open",
+                    game_context=json.dumps(home_team_total),
+                ),
+                PaperTrade(
+                    market_id=away_team_total["market_id"],
+                    sport="nba",
+                    market_category="team_total",
+                    side="yes",
+                    entry_price=41,
+                    entry_price_adj=42,
+                    slippage_cents=1,
+                    kelly_size_cents=2500,
+                    status="open",
+                    game_context=json.dumps(away_team_total),
+                ),
+            ]
+        )
+        await db.commit()
+
+        simulator = PaperTradeSimulator(Portfolio(initial_bankroll_cents=100000))
+        resolved = await resolve_game_trades(db, simulator, game)
+        await db.commit()
+
+        statuses = sorted(trade.status for trade in resolved)
+        assert statuses == ["resolved_loss", "resolved_win"]

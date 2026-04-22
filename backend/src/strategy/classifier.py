@@ -2,7 +2,11 @@ from typing import Any
 
 from src.core.logging import get_logger
 from src.core.types import Sport
-from src.strategy.sports.common import classify_spread_reversion, classify_total_reversion
+from src.strategy.sports.common import (
+    classify_spread_reversion,
+    classify_team_total_reversion,
+    classify_total_reversion,
+)
 from src.strategy.sports.mlb import MlbClassifier
 from src.strategy.sports.nba import NbaClassifier
 from src.strategy.sports.nfl import NflClassifier
@@ -42,6 +46,8 @@ class EventClassifier:
         market_category: str = "moneyline",
         opening_spread_home: float | None = None,
         opening_total: float | None = None,
+        opening_team_total: float | None = None,
+        team_total_side: str | None = None,
     ) -> str:
         event_text = f"{event_type.lower()} {description.lower()}"
         if market_category == "spread":
@@ -62,6 +68,17 @@ class EventClassifier:
                 away_score=away_score,
                 period=period,
                 opening_total=opening_total,
+            )
+
+        if market_category == "team_total":
+            return classify_team_total_reversion(
+                sport=sport,
+                event_text=event_text,
+                home_score=home_score,
+                away_score=away_score,
+                period=period,
+                opening_team_total=opening_team_total,
+                team_total_side=team_total_side,
             )
 
         classifier = self._classifiers.get(sport)

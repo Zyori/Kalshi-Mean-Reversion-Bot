@@ -50,6 +50,8 @@ class EventDetector:
             market_category=event.get("market_category", "moneyline"),
             opening_spread_home=event.get("opening_spread_home"),
             opening_total=event.get("opening_total"),
+            opening_team_total=event.get("opening_team_total"),
+            team_total_side=event.get("team_total_side"),
         )
 
         event["classification"] = classification
