@@ -95,7 +95,6 @@ class PaperTradeSimulator:
     ) -> None:
         self.portfolio = portfolio or Portfolio()
         self.estimator = estimator or ConservativeEstimator()
-        self._trade_counter = 0
 
     def evaluate_opportunity(self, event: dict[str, Any]) -> dict[str, Any] | None:
         if not self.portfolio.can_open():
@@ -148,9 +147,7 @@ class PaperTradeSimulator:
             fraction_multiplier=1.0,
         )
 
-        self._trade_counter += 1
         trade = {
-            "id": self._trade_counter,
             "sport": event.get("sport"),
             "market_category": event.get("market_category", "moneyline"),
             "side": side,
@@ -175,20 +172,20 @@ class PaperTradeSimulator:
                 market_prob_yes=market_prob_yes,
             ),
         }
+        return trade
 
-        self.portfolio.open_position(self._trade_counter, size)
-
+    def activate_trade(self, trade_id: int, trade: dict[str, Any]) -> None:
+        trade["id"] = trade_id
+        self.portfolio.open_position(trade_id, trade["kelly_size_cents"])
         logger.info(
             "paper_trade_opened",
-            trade_id=self._trade_counter,
+            trade_id=trade_id,
             sport=trade["sport"],
             market_category=trade["market_category"],
-            entry=entry_adj,
-            size=size,
-            confidence=confidence,
+            entry=trade["entry_price_adj"],
+            size=trade["kelly_size_cents"],
+            confidence=trade["confidence_score"],
         )
-
-        return trade
 
     def resolve_trade(
         self,

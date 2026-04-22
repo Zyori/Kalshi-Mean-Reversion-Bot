@@ -52,6 +52,7 @@ class TestPaperTradeSimulator:
         assert trade["entry_price"] == 40
         assert trade["entry_price_adj"] > 40
         assert trade["kelly_size_cents"] > 0
+        assert sim.portfolio.open_count == 0
 
     def test_zero_confidence_rejected(self, sim: PaperTradeSimulator):
         trade = sim.evaluate_opportunity(self._make_event(confidence_score=0))
@@ -108,24 +109,36 @@ class TestPaperTradeSimulator:
 
     def test_portfolio_full_rejected(self):
         sim = PaperTradeSimulator(Portfolio(initial_bankroll_cents=50000, max_positions=1))
-        sim.evaluate_opportunity(self._make_event())
+        first = sim.evaluate_opportunity(self._make_event())
+        assert first is not None
+        sim.activate_trade(1, first)
         trade2 = sim.evaluate_opportunity(self._make_event())
         assert trade2 is None
 
+    def test_activate_trade_reserves_portfolio(self, sim: PaperTradeSimulator):
+        trade = sim.evaluate_opportunity(self._make_event())
+        assert trade is not None
+        sim.activate_trade(7, trade)
+        assert sim.portfolio.open_count == 1
+        assert sim.portfolio.pending_wagers_cents == trade["kelly_size_cents"]
+
     def test_resolve_win(self, sim: PaperTradeSimulator):
         trade = sim.evaluate_opportunity(self._make_event())
+        sim.activate_trade(1, trade)
         resolved = sim.resolve_trade(trade, exit_price=100, won=True)
         assert resolved["status"] == "resolved_win"
         assert resolved["pnl_cents"] > 0
 
     def test_resolve_loss(self, sim: PaperTradeSimulator):
         trade = sim.evaluate_opportunity(self._make_event())
+        sim.activate_trade(1, trade)
         resolved = sim.resolve_trade(trade, exit_price=0, won=False)
         assert resolved["status"] == "resolved_loss"
         assert resolved["pnl_cents"] < 0
 
     def test_resolve_push(self, sim: PaperTradeSimulator):
         trade = sim.evaluate_opportunity(self._make_event())
+        sim.activate_trade(1, trade)
         resolved = sim.resolve_trade(
             trade,
             exit_price=trade["entry_price_adj"],
@@ -139,11 +152,13 @@ class TestPaperTradeSimulator:
     def test_bankroll_updates_after_resolution(self, sim: PaperTradeSimulator):
         initial = sim.portfolio.bankroll_cents
         trade = sim.evaluate_opportunity(self._make_event())
+        sim.activate_trade(1, trade)
         sim.resolve_trade(trade, exit_price=100, won=True)
         assert sim.portfolio.bankroll_cents > initial
 
     def test_position_closed_after_resolution(self, sim: PaperTradeSimulator):
         trade = sim.evaluate_opportunity(self._make_event())
+        sim.activate_trade(1, trade)
         assert sim.portfolio.open_count == 1
         sim.resolve_trade(trade, exit_price=0, won=False)
         assert sim.portfolio.open_count == 0

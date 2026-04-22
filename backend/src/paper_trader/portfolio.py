@@ -29,6 +29,21 @@ class Portfolio:
     def can_open(self) -> bool:
         return self.open_count < self.max_positions and self.available_cents > 0
 
+    def sync_state(
+        self,
+        *,
+        bankroll_cents: int,
+        open_positions: dict[int, int],
+    ) -> None:
+        self.bankroll_cents = bankroll_cents
+        self._open_positions = dict(open_positions)
+        logger.info(
+            "portfolio_state_synced",
+            bankroll_cents=self.bankroll_cents,
+            open_count=self.open_count,
+            pending_wagers_cents=self.pending_wagers_cents,
+        )
+
     def open_position(self, trade_id: int, size_cents: int) -> None:
         if not self.can_open():
             logger.warning("portfolio_cannot_open", trade_id=trade_id)

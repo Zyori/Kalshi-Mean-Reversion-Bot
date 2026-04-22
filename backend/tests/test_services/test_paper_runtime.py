@@ -10,7 +10,11 @@ from src.models.game import Game
 from src.models.trade import PaperTrade
 from src.paper_trader.portfolio import Portfolio
 from src.paper_trader.simulator import PaperTradeSimulator
-from src.services.paper_runtime import attach_synthetic_market_contexts, resolve_game_trades
+from src.services.paper_runtime import (
+    attach_synthetic_market_contexts,
+    resolve_game_trades,
+    restore_portfolio_state,
+)
 
 
 @pytest.fixture
@@ -165,3 +169,43 @@ async def test_resolve_game_trades_settles_spread_total_and_pushes(db_session_fa
         assert trades[0].pnl_cents == 0
         assert trades[1].status == "resolved_loss"
         assert trades[2].status == "resolved_win"
+
+
+async def test_restore_portfolio_state_uses_db_bankroll_and_open_positions(db_session_factory):
+    async with db_session_factory() as db:
+        db.add_all(
+            [
+                PaperTrade(
+                    market_id=1,
+                    sport="mlb",
+                    market_category="moneyline",
+                    side="yes",
+                    entry_price=40,
+                    entry_price_adj=41,
+                    slippage_cents=1,
+                    kelly_size_cents=2500,
+                    status="open",
+                    pnl_cents=None,
+                ),
+                PaperTrade(
+                    market_id=2,
+                    sport="mlb",
+                    market_category="spread",
+                    side="no",
+                    entry_price=35,
+                    entry_price_adj=36,
+                    slippage_cents=1,
+                    kelly_size_cents=1500,
+                    status="resolved_win",
+                    pnl_cents=2200,
+                ),
+            ]
+        )
+        await db.commit()
+
+        portfolio = Portfolio(initial_bankroll_cents=100000)
+        await restore_portfolio_state(db, portfolio)
+
+        assert portfolio.bankroll_cents == 102200
+        assert portfolio.open_count == 1
+        assert portfolio.pending_wagers_cents == 2500

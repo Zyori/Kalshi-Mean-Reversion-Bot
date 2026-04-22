@@ -8,7 +8,11 @@ from src.analysis.accumulators import Accumulators
 from src.config import settings
 from src.core.logging import get_logger
 from src.ingestion.espn_events import EspnEventsPoller
-from src.ingestion.espn_scoreboard import EspnScoreboardPoller, is_final_status, is_live_status
+from src.ingestion.espn_scoreboard import (
+    EspnScoreboardPoller,
+    is_final_status,
+    is_live_status,
+)
 from src.ingestion.kalshi_rest import KalshiRestClient
 from src.ingestion.odds import OddsApiPoller
 from src.paper_trader.portfolio import Portfolio
@@ -25,6 +29,7 @@ from src.services.paper_runtime import (
     get_game_by_espn_id,
     persist_trade,
     resolve_game_trades,
+    restore_portfolio_state,
 )
 from src.services.trade_policy_service import evaluate_trade_gate
 from src.strategy.detector import EventDetector
@@ -208,6 +213,7 @@ async def _trader_loop(
                         summary=trade.get("reasoning"),
                     )
                     await db.commit()
+                    simulator.activate_trade(record.id, trade)
                     logger.info(
                         "paper_trade_opened",
                         trade_id=record.id,
@@ -244,7 +250,10 @@ async def run_supervisor(session_factory: async_sessionmaker) -> None:
     odds = OddsApiPoller(espn_queue)
     kalshi_rest = KalshiRestClient()
     detector = EventDetector(espn_queue, trade_queue)
-    simulator = PaperTradeSimulator(Portfolio())
+    portfolio = Portfolio()
+    async with session_factory() as db:
+        await restore_portfolio_state(db, portfolio)
+    simulator = PaperTradeSimulator(portfolio)
     accumulators = Accumulators()
 
     registry.scoreboard = scoreboard

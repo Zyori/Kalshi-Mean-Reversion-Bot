@@ -2,13 +2,15 @@ import json
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.config import settings
 from src.core.logging import get_logger
 from src.models.game import Game
 from src.models.market import Market, MarketSnapshot
 from src.models.trade import PaperTrade
+from src.paper_trader.portfolio import Portfolio
 from src.paper_trader.simulator import PaperTradeSimulator
 
 logger = get_logger(__name__)
@@ -300,6 +302,25 @@ async def persist_trade(
 async def load_open_trades(db: AsyncSession) -> list[PaperTrade]:
     result = await db.execute(select(PaperTrade).where(PaperTrade.status == "open"))
     return result.scalars().all()
+
+
+async def restore_portfolio_state(
+    db: AsyncSession,
+    portfolio: Portfolio,
+) -> None:
+    total_pnl = await db.scalar(
+        select(func.sum(PaperTrade.pnl_cents)).where(PaperTrade.status != "open")
+    )
+    bankroll_cents = settings.paper_bankroll_start_cents + int(total_pnl or 0)
+    open_trades = await load_open_trades(db)
+    open_positions = {
+        trade.id: int(trade.kelly_size_cents or 0)
+        for trade in open_trades
+    }
+    portfolio.sync_state(
+        bankroll_cents=bankroll_cents,
+        open_positions=open_positions,
+    )
 
 
 async def resolve_game_trades(
