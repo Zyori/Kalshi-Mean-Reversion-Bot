@@ -243,3 +243,45 @@ async def test_record_opening_line_does_not_merge_doubleheaders(db_session_facto
         await db.commit()
 
         assert earlier_game.id != existing.id
+
+
+async def test_record_opening_line_prefers_espn_backed_game_when_duplicates_exist(
+    db_session_factory,
+):
+    async with db_session_factory() as db:
+        live_game = Game(
+            sport="mlb",
+            home_team="Detroit Tigers",
+            away_team="Milwaukee Brewers",
+            start_time=datetime(2026, 4, 22, 22, 40, tzinfo=UTC),
+            espn_id="401815044",
+            status="STATUS_IN_PROGRESS",
+        )
+        stale_duplicate = Game(
+            sport="mlb",
+            home_team="Detroit Tigers",
+            away_team="Milwaukee Brewers",
+            start_time=datetime(2026, 4, 22, 22, 41, tzinfo=UTC),
+            status="scheduled",
+        )
+        db.add_all([live_game, stale_duplicate])
+        await db.flush()
+
+        game = await record_opening_line(
+            db,
+            {
+                "sport": "mlb",
+                "home_team": "Detroit Tigers",
+                "away_team": "Milwaukee Brewers",
+                "start_time": "2026-04-22T22:41:00Z",
+                "source": "odds_api",
+                "home_prob": 0.57,
+                "away_prob": 0.43,
+                "captured_at": "2026-04-22T20:00:00Z",
+            },
+        )
+        await db.commit()
+
+        assert game.id == live_game.id
+        remaining_games = (await db.execute(Game.__table__.select())).all()
+        assert len(remaining_games) == 1

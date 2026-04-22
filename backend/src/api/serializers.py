@@ -1,4 +1,5 @@
 import json
+from datetime import UTC, datetime
 from typing import Any
 
 from src.models.game import Game, GameEvent
@@ -14,13 +15,20 @@ def _loads_json(value: str | None) -> Any:
         return value
 
 
+def _serialize_datetime(value: datetime | None) -> str | None:
+    if value is None:
+        return None
+    value = value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+    return value.isoformat()
+
+
 def serialize_game(game: Game) -> dict[str, Any]:
     return {
         "id": game.id,
         "sport": game.sport,
         "home_team": game.home_team,
         "away_team": game.away_team,
-        "start_time": game.start_time.isoformat(),
+        "start_time": _serialize_datetime(game.start_time),
         "espn_id": game.espn_id,
         "status": game.status,
         "opening_line_home_prob": game.opening_line_home_prob,
@@ -34,7 +42,7 @@ def serialize_game(game: Game) -> dict[str, Any]:
         "latest_away_score": game.latest_away_score,
         "final_home_score": game.final_home_score,
         "final_away_score": game.final_away_score,
-        "created_at": game.created_at.isoformat() if game.created_at else None,
+        "created_at": _serialize_datetime(game.created_at),
     }
 
 
@@ -58,10 +66,8 @@ def serialize_event(event: GameEvent) -> dict[str, Any]:
         "away_score": event.away_score,
         "period": event.period,
         "clock": event.clock,
-        "detected_at": event.detected_at.isoformat() if event.detected_at else None,
-        "estimated_real_at": (
-            event.estimated_real_at.isoformat() if event.estimated_real_at else None
-        ),
+        "detected_at": _serialize_datetime(event.detected_at),
+        "estimated_real_at": _serialize_datetime(event.estimated_real_at),
         "classification": event.classification,
         "confidence_score": event.confidence_score,
         "kalshi_price_at": event.kalshi_price_at,
@@ -128,8 +134,8 @@ def serialize_trade(trade: PaperTrade) -> dict[str, Any]:
         "pnl_cents": trade.pnl_cents,
         "pnl_kelly_cents": trade.pnl_kelly_cents,
         "status": trade.status,
-        "entered_at": trade.entered_at.isoformat() if trade.entered_at else None,
-        "resolved_at": trade.resolved_at.isoformat() if trade.resolved_at else None,
+        "entered_at": _serialize_datetime(trade.entered_at),
+        "resolved_at": _serialize_datetime(trade.resolved_at),
         "resolution": trade.resolution,
         "game_context": game_context,
         "reasoning": trade.reasoning,

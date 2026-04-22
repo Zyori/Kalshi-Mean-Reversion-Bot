@@ -1,6 +1,7 @@
 import asyncio
 from datetime import UTC, datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import httpx
 
@@ -31,6 +32,7 @@ LIVE_STATUS_MARKERS = (
     "intermission",
 )
 FINAL_STATUS_MARKERS = ("final", "post")
+ESPN_PLATFORM_TIME_ZONE = ZoneInfo("America/New_York")
 
 
 def is_live_status(status: str) -> bool:
@@ -41,6 +43,12 @@ def is_live_status(status: str) -> bool:
 def is_final_status(status: str) -> bool:
     normalized = status.lower()
     return any(marker in normalized for marker in FINAL_STATUS_MARKERS)
+
+
+def _espn_dates_value(now: datetime | None = None) -> str:
+    current = now or datetime.now(UTC)
+    eastern_date = current.astimezone(ESPN_PLATFORM_TIME_ZONE)
+    return eastern_date.strftime("%Y%m%d")
 
 def _parse_game(event: dict, sport: str) -> dict[str, Any]:
     competition = event["competitions"][0]
@@ -92,19 +100,38 @@ class EspnScoreboardPoller:
         updates = []
         has_live_game = False
         has_upcoming_game = False
+        dates_value = _espn_dates_value()
         for sport in self.sports:
             url = SCOREBOARD_URLS.get(sport)
             if not url:
                 continue
             try:
-                resp = await self.client.get(url)
-                resp.raise_for_status()
-                data = resp.json()
+                default_resp, today_resp = await asyncio.gather(
+                    self.client.get(url),
+                    self.client.get(url, params={"dates": dates_value}),
+                )
             except (httpx.HTTPError, Exception):
                 logger.exception("espn_scoreboard_error", sport=sport)
                 continue
 
-            for event in data.get("events", []):
+            events_by_id: dict[str, dict[str, Any]] = {}
+            for resp, label in ((default_resp, "default"), (today_resp, "today")):
+                try:
+                    resp.raise_for_status()
+                except httpx.HTTPError:
+                    logger.warning(
+                        "espn_scoreboard_response_error",
+                        sport=sport,
+                        request_type=label,
+                        status_code=resp.status_code,
+                    )
+                    continue
+                for event in resp.json().get("events", []):
+                    event_id = event.get("id")
+                    if event_id:
+                        events_by_id[event_id] = event
+
+            for event in events_by_id.values():
                 parsed = _parse_game(event, sport)
                 espn_id = parsed["espn_id"]
                 prev = self._previous.get(espn_id)

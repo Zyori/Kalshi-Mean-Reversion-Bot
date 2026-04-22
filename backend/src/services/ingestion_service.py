@@ -1,12 +1,12 @@
 import json
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.logging import get_logger
 from src.models.game import Game, GameEvent
-from src.models.market import OpeningLine
+from src.models.market import Market, OpeningLine
 
 logger = get_logger(__name__)
 
@@ -35,6 +35,143 @@ def _coerce_utc(dt: datetime | None) -> datetime | None:
     return dt.astimezone(UTC)
 
 
+def _is_live_game(status: str | None) -> bool:
+    normalized = str(status or "").lower()
+    return any(
+        marker in normalized
+        for marker in (
+            "in_progress",
+            "first_half",
+            "second_half",
+            "halftime",
+            "end_period",
+            "end_quarter",
+            "overtime",
+            "shootout",
+            "intermission",
+            "live",
+        )
+    )
+
+
+def _is_final_game(status: str | None) -> bool:
+    normalized = str(status or "").lower()
+    return any(marker in normalized for marker in ("final", "post", "full_time"))
+
+
+def _game_quality_score(game: Game) -> tuple[int, int, int, int, int]:
+    structured_score = sum(
+        value is not None
+        for value in (
+            game.opening_line_home_prob,
+            game.opening_spread_home,
+            game.opening_total,
+            game.latest_home_score,
+            game.latest_away_score,
+            game.final_home_score,
+            game.final_away_score,
+        )
+    )
+    return (
+        1 if _is_live_game(game.status) else 0,
+        1 if _is_final_game(game.status) else 0,
+        1 if bool(game.espn_id) else 0,
+        structured_score,
+        -(game.id or 0),
+    )
+
+
+def _game_time_delta_hours(game: Game, start_time: datetime | None) -> float:
+    if start_time is None:
+        return 0.0
+    game_start = _coerce_utc(game.start_time)
+    if game_start is None:
+        return float("inf")
+    return abs((game_start - start_time).total_seconds()) / 3600
+
+
+def _merge_game_fields(target: Game, source: Game) -> None:
+    if target.espn_id is None and source.espn_id is not None:
+        target.espn_id = source.espn_id
+    if (
+        not _is_live_game(target.status)
+        and not _is_final_game(target.status)
+        and (_is_live_game(source.status) or _is_final_game(source.status))
+    ):
+        target.status = source.status
+    if target.opening_line_home_prob is None:
+        target.opening_line_home_prob = source.opening_line_home_prob
+    if target.opening_line_source is None:
+        target.opening_line_source = source.opening_line_source
+    if target.opening_spread_home is None:
+        target.opening_spread_home = source.opening_spread_home
+    if target.opening_spread_away is None:
+        target.opening_spread_away = source.opening_spread_away
+    if target.opening_total is None:
+        target.opening_total = source.opening_total
+    if target.opening_home_team_total is None:
+        target.opening_home_team_total = source.opening_home_team_total
+    if target.opening_away_team_total is None:
+        target.opening_away_team_total = source.opening_away_team_total
+    if target.latest_home_score is None:
+        target.latest_home_score = source.latest_home_score
+    if target.latest_away_score is None:
+        target.latest_away_score = source.latest_away_score
+    if target.final_home_score is None:
+        target.final_home_score = source.final_home_score
+    if target.final_away_score is None:
+        target.final_away_score = source.final_away_score
+
+
+async def _find_game_duplicates(
+    db: AsyncSession,
+    *,
+    game: Game,
+) -> list[Game]:
+    game_start = _coerce_utc(game.start_time)
+    stmt = select(Game).where(
+        Game.id != game.id,
+        Game.sport == game.sport,
+        Game.home_team == game.home_team,
+        Game.away_team == game.away_team,
+    )
+    result = await db.execute(stmt)
+    candidates = result.scalars().all()
+    duplicates: list[Game] = []
+    for candidate in candidates:
+        if _game_time_delta_hours(candidate, game_start) <= GAME_MATCH_WINDOW_HOURS:
+            duplicates.append(candidate)
+    return duplicates
+
+
+async def _merge_duplicate_games(
+    db: AsyncSession,
+    *,
+    canonical: Game,
+    duplicates: list[Game],
+) -> None:
+    for duplicate in duplicates:
+        if duplicate.id == canonical.id:
+            continue
+        _merge_game_fields(canonical, duplicate)
+        await db.execute(
+            update(OpeningLine)
+            .where(OpeningLine.game_id == duplicate.id)
+            .values(game_id=canonical.id)
+        )
+        await db.execute(
+            update(GameEvent)
+            .where(GameEvent.game_id == duplicate.id)
+            .values(game_id=canonical.id)
+        )
+        await db.execute(
+            update(Market)
+            .where(Market.game_id == duplicate.id)
+            .values(game_id=canonical.id)
+        )
+        await db.delete(duplicate)
+
+
 async def _find_game_by_matchup(
     db: AsyncSession,
     *,
@@ -55,17 +192,15 @@ async def _find_game_by_matchup(
     if start_time is None:
         return candidates[0]
 
-    best_match: tuple[float, Game] | None = None
+    best_match: tuple[tuple[int, int, int, int, int], float, Game] | None = None
     for game in candidates:
-        game_start = _coerce_utc(game.start_time)
-        if game_start is None:
-            continue
-        delta_hours = abs((game_start - start_time).total_seconds()) / 3600
+        delta_hours = _game_time_delta_hours(game, start_time)
         if delta_hours > GAME_MATCH_WINDOW_HOURS:
             continue
-        if best_match is None or delta_hours < best_match[0]:
-            best_match = (delta_hours, game)
-    return best_match[1] if best_match else None
+        candidate_key = (_game_quality_score(game), -delta_hours)
+        if best_match is None or candidate_key > (best_match[0], -best_match[1]):
+            best_match = (_game_quality_score(game), delta_hours, game)
+    return best_match[2] if best_match else None
 
 
 async def upsert_game_from_scoreboard(db: AsyncSession, payload: dict) -> Game:
@@ -116,6 +251,10 @@ async def upsert_game_from_scoreboard(db: AsyncSession, payload: dict) -> Game:
         game.final_home_score = None
         game.final_away_score = None
 
+    duplicates = await _find_game_duplicates(db, game=game)
+    if duplicates:
+        await _merge_duplicate_games(db, canonical=game, duplicates=duplicates)
+
     await db.flush()
     return game
 
@@ -155,6 +294,10 @@ async def record_opening_line(db: AsyncSession, payload: dict) -> Game:
         game.opening_total = payload.get("total_points")
         game.opening_home_team_total = payload.get("home_team_total")
         game.opening_away_team_total = payload.get("away_team_total")
+
+    duplicates = await _find_game_duplicates(db, game=game)
+    if duplicates:
+        await _merge_duplicate_games(db, canonical=game, duplicates=duplicates)
 
     opening_line = OpeningLine(
         game_id=game.id,
