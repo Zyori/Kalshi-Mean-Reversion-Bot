@@ -260,6 +260,11 @@ export function MarketsPage() {
                     <Badge className="bg-surface-3 text-text-dim uppercase text-[10px]">
                       {event.sport ?? "event"}
                     </Badge>
+                    {event.market_category && (
+                      <Badge className="bg-accent/10 text-accent-light uppercase text-[10px]">
+                        {event.market_category}
+                      </Badge>
+                    )}
                     <span className="text-sm font-medium">{event.event_type}</span>
                   </div>
                   <span className="text-xs text-text-dim">

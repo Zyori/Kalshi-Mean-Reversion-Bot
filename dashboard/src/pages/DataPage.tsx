@@ -289,6 +289,11 @@ export function DataPage() {
                               <Badge className="bg-surface-3 text-text-dim uppercase text-[10px]">
                                 {event.event_type}
                               </Badge>
+                              {event.market_category && (
+                                <Badge className="bg-surface-3 text-text-dim uppercase text-[10px]">
+                                  {event.market_category}
+                                </Badge>
+                              )}
                               {event.classification && (
                                 <Badge className="bg-accent/15 text-accent-light">
                                   {event.classification}
@@ -299,6 +304,11 @@ export function DataPage() {
                               {formatDate(event.detected_at)}
                             </span>
                           </div>
+                          {(event.market_label_yes || event.market_label_no) && (
+                            <div className="mt-1 text-xs text-text-dim">
+                              {event.market_label_yes ?? "--"} / {event.market_label_no ?? "--"}
+                            </div>
+                          )}
                           {event.description && (
                             <p className="mt-2 text-sm">{event.description}</p>
                           )}

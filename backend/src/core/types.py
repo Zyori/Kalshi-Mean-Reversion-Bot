@@ -41,6 +41,7 @@ class TradeStatus(StrEnum):
     OPEN = "open"
     RESOLVED_WIN = "resolved_win"
     RESOLVED_LOSS = "resolved_loss"
+    RESOLVED_PUSH = "resolved_push"
     SETTLED_EARLY = "settled_early"
     UNRESOLVED = "unresolved"
 

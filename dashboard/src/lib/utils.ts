@@ -115,6 +115,8 @@ export function statusBadgeClass(status: string): string {
       return "bg-profit/20 text-profit";
     case "resolved_loss":
       return "bg-loss/20 text-loss";
+    case "resolved_push":
+      return "bg-surface-3 text-text-dim";
     case "expired":
       return "bg-zinc-700/40 text-zinc-400";
     default:

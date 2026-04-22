@@ -20,7 +20,7 @@ from src.services.ingestion_service import (
 )
 from src.services.kalshi_market_service import attach_real_market_context
 from src.services.paper_runtime import (
-    attach_synthetic_market_context,
+    attach_synthetic_market_contexts,
     get_game_by_espn_id,
     persist_trade,
     resolve_game_trades,
@@ -104,18 +104,34 @@ async def _events_loop(
                         event["home_team"] = game.home_team
                         event["away_team"] = game.away_team
                         event["game_status"] = game.status
-                        enriched = await attach_real_market_context(db, kalshi_rest, game, event)
-                        if enriched is None:
-                            enriched = await attach_synthetic_market_context(db, game, event)
-                        detected = await detector.process_event(enriched)
-                        payload = detected or enriched
-                        game_event = await record_game_event(db, payload)
-                        await events_poller._enqueue(payload)
-                        if detected:
-                            detected["game_event_id"] = game_event.id if game_event else None
-                            if trade_queue.full():
-                                logger.warning("trade_queue_full")
-                            await trade_queue.put(detected)
+                        market_payloads: list[dict[str, Any]] = []
+                        real_moneyline = await attach_real_market_context(
+                            db,
+                            kalshi_rest,
+                            game,
+                            dict(event),
+                        )
+                        if real_moneyline is not None:
+                            market_payloads.append(real_moneyline)
+
+                        synthetic_payloads = await attach_synthetic_market_contexts(
+                            db,
+                            game,
+                            event,
+                            include_moneyline=real_moneyline is None,
+                        )
+                        market_payloads.extend(synthetic_payloads)
+
+                        for enriched in market_payloads:
+                            detected = await detector.process_event(enriched)
+                            payload = detected or enriched
+                            game_event = await record_game_event(db, payload)
+                            await events_poller._enqueue(payload)
+                            if detected:
+                                detected["game_event_id"] = game_event.id if game_event else None
+                                if trade_queue.full():
+                                    logger.warning("trade_queue_full")
+                                await trade_queue.put(detected)
                     await db.commit()
             if new_events:
                 logger.info("events_detected", count=len(new_events))

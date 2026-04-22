@@ -33,7 +33,9 @@ class EventDetector:
         period = event.get("period", "")
         kalshi_price = event.get("kalshi_price_at")
 
-        baseline = self._baselines.get(espn_id, 0.5)
+        baseline = event.get("baseline_prob")
+        if baseline is None:
+            baseline = self._baselines.get(espn_id, 0.5)
         is_home_favorite = baseline >= 0.5
 
         classification = self.classifier.classify(

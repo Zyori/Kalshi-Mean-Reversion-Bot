@@ -94,6 +94,18 @@ class TestPaperTradeSimulator:
         assert trade is not None
         assert trade["market_source"] == "kalshi_demo"
 
+    def test_trade_uses_market_labels_in_reasoning(self, sim: PaperTradeSimulator):
+        trade = sim.evaluate_opportunity(
+            self._make_event(
+                market_category="total",
+                market_label_yes="Over 219.5",
+                market_label_no="Under 219.5",
+            )
+        )
+        assert trade is not None
+        assert trade["market_category"] == "total"
+        assert "pick=Over 219.5" in trade["reasoning"]
+
     def test_portfolio_full_rejected(self):
         sim = PaperTradeSimulator(Portfolio(initial_bankroll_cents=50000, max_positions=1))
         sim.evaluate_opportunity(self._make_event())
@@ -111,6 +123,18 @@ class TestPaperTradeSimulator:
         resolved = sim.resolve_trade(trade, exit_price=0, won=False)
         assert resolved["status"] == "resolved_loss"
         assert resolved["pnl_cents"] < 0
+
+    def test_resolve_push(self, sim: PaperTradeSimulator):
+        trade = sim.evaluate_opportunity(self._make_event())
+        resolved = sim.resolve_trade(
+            trade,
+            exit_price=trade["entry_price_adj"],
+            won=False,
+            push=True,
+        )
+        assert resolved["status"] == "resolved_push"
+        assert resolved["pnl_cents"] == 0
+        assert resolved["resolution"] == "push"
 
     def test_bankroll_updates_after_resolution(self, sim: PaperTradeSimulator):
         initial = sim.portfolio.bankroll_cents

@@ -40,6 +40,11 @@ def serialize_game(game: Game) -> dict[str, Any]:
 
 def serialize_event(event: GameEvent) -> dict[str, Any]:
     game = event.game
+    espn_data = _loads_json(event.espn_data)
+    market_category = espn_data.get("market_category") if isinstance(espn_data, dict) else None
+    market_source = espn_data.get("market_source") if isinstance(espn_data, dict) else None
+    market_label_yes = espn_data.get("market_label_yes") if isinstance(espn_data, dict) else None
+    market_label_no = espn_data.get("market_label_no") if isinstance(espn_data, dict) else None
     return {
         "id": event.id,
         "game_id": event.game_id,
@@ -62,19 +67,31 @@ def serialize_event(event: GameEvent) -> dict[str, Any]:
         "kalshi_price_at": event.kalshi_price_at,
         "baseline_prob": event.baseline_prob,
         "deviation": event.deviation,
-        "espn_data": _loads_json(event.espn_data),
+        "market_category": market_category,
+        "market_source": market_source,
+        "market_label_yes": market_label_yes,
+        "market_label_no": market_label_no,
+        "espn_data": espn_data,
     }
 
 
 def serialize_trade(trade: PaperTrade) -> dict[str, Any]:
     trigger_event = trade.game_event
     trigger_game = trigger_event.game if trigger_event else None
+    game_context = _loads_json(trade.game_context)
     matchup = (
         f"{trigger_game.away_team} @ {trigger_game.home_team}" if trigger_game else None
     )
     selected_team = None
     opposing_team = None
-    if trigger_game:
+    if isinstance(game_context, dict):
+        if trade.side == "yes":
+            selected_team = game_context.get("market_label_yes")
+            opposing_team = game_context.get("market_label_no")
+        elif trade.side == "no":
+            selected_team = game_context.get("market_label_no")
+            opposing_team = game_context.get("market_label_yes")
+    if selected_team is None and trigger_game:
         if trade.side == "yes":
             selected_team = trigger_game.home_team
             opposing_team = trigger_game.away_team
@@ -105,7 +122,7 @@ def serialize_trade(trade: PaperTrade) -> dict[str, Any]:
         "entered_at": trade.entered_at.isoformat() if trade.entered_at else None,
         "resolved_at": trade.resolved_at.isoformat() if trade.resolved_at else None,
         "resolution": trade.resolution,
-        "game_context": _loads_json(trade.game_context),
+        "game_context": game_context,
         "reasoning": trade.reasoning,
         "skip_reason": trade.skip_reason,
         "trigger_event": serialize_event(trigger_event) if trigger_event else None,

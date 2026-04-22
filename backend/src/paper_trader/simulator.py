@@ -29,14 +29,15 @@ def _build_reasoning(
     event_type = event.get("event_type") or "event"
     classification = event.get("classification") or "unclassified"
     market_source = event.get("market_source") or "unknown"
-    home_team = event.get("home_team")
-    away_team = event.get("away_team")
-    selected_team = home_team if side == "yes" else away_team
+    market_category = event.get("market_category") or "moneyline"
+    selected_team = (
+        event.get("market_label_yes") if side == "yes" else event.get("market_label_no")
+    )
     deviation = event.get("deviation")
     deviation_text = f"{deviation:.3f}" if isinstance(deviation, (int, float)) else "n/a"
     return (
         f"Mean reversion {side.upper()} off {classification}: "
-        f"team={selected_team or 'unknown'}, "
+        f"market={market_category}, pick={selected_team or 'unknown'}, "
         f"fair_yes={fair_prob_yes:.3f}, market_yes={market_prob_yes:.3f}, "
         f"deviation={deviation_text}, event={event_type}, source={market_source}, "
         f"entry={entry_price}c, wager={size_cents}c"
@@ -147,12 +148,23 @@ class PaperTradeSimulator:
 
         return trade
 
-    def resolve_trade(self, trade: dict[str, Any], exit_price: int, won: bool) -> dict[str, Any]:
+    def resolve_trade(
+        self,
+        trade: dict[str, Any],
+        exit_price: int,
+        won: bool,
+        *,
+        push: bool = False,
+    ) -> dict[str, Any]:
         entry_adj = trade["entry_price_adj"]
         kelly_size_cents = trade["kelly_size_cents"]
         flat_size_cents = trade["flat_size_cents"]
 
-        if won:
+        if push:
+            pnl_cents = 0
+            pnl_flat = 0
+            status = "resolved_push"
+        elif won:
             payout_per_contract = 100 - entry_adj
             pnl_cents = int((kelly_size_cents / entry_adj) * payout_per_contract)
             pnl_flat = int((flat_size_cents / entry_adj) * payout_per_contract)
@@ -167,7 +179,12 @@ class PaperTradeSimulator:
         trade["pnl_kelly_cents"] = pnl_cents
         trade["pnl_flat_cents"] = pnl_flat
         trade["status"] = status
-        trade["resolution"] = trade["side"] if won else ("no" if trade["side"] == "yes" else "yes")
+        if push:
+            trade["resolution"] = "push"
+        else:
+            trade["resolution"] = (
+                trade["side"] if won else ("no" if trade["side"] == "yes" else "yes")
+            )
 
         self.portfolio.close_position(trade["id"], pnl_cents)
 

@@ -102,6 +102,10 @@ export interface GameEvent {
   kalshi_price_at: number | null;
   baseline_prob: number | null;
   deviation: number | null;
+  market_category: string | null;
+  market_source: string | null;
+  market_label_yes: string | null;
+  market_label_no: string | null;
   estimated_real_at: string | null;
   espn_data: Record<string, unknown> | null;
 }
