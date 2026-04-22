@@ -1,10 +1,12 @@
+from pathlib import Path
+
 import bcrypt
 import pytest
 from httpx import AsyncClient
 
+import src.main as main_module
 from src.config import settings
-from src.core.database import Base
-from src.main import engine, session_factory
+from src.core.database import Base, create_engine, create_session_factory
 from src.models.decision import TradeDecision
 from src.models.trade import PaperTrade
 
@@ -20,9 +22,20 @@ def _authed(monkeypatch: pytest.MonkeyPatch):
 
 
 @pytest.fixture(autouse=True)
-async def _ensure_tables():
+async def _isolated_session_factory(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    database_url = f"sqlite+aiosqlite:///{tmp_path / 'analysis-test.db'}"
+    engine = create_engine(database_url)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    factory = create_session_factory(engine)
+    original_factory = main_module.session_factory
+    monkeypatch.setattr("src.main.session_factory", factory)
+    try:
+        yield factory
+    finally:
+        await engine.dispose()
+        monkeypatch.setattr("src.main.session_factory", original_factory)
 
 
 async def _login(client: AsyncClient, password: str) -> None:
@@ -66,7 +79,7 @@ async def test_analysis_summary_counts_pushes_as_resolved(
     assert baseline.status_code == 200
     before = baseline.json()
 
-    async with session_factory() as db:
+    async with main_module.session_factory() as db:
         db.add(
             PaperTrade(
                 market_id=1,
@@ -111,7 +124,7 @@ async def test_analysis_decision_audits_are_available(
         for row in baseline_summary.json()
     }
 
-    async with session_factory() as db:
+    async with main_module.session_factory() as db:
         db.add_all(
             [
                 TradeDecision(

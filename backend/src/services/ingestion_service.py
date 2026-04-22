@@ -10,7 +10,7 @@ from src.models.market import OpeningLine
 
 logger = get_logger(__name__)
 
-GAME_MATCH_WINDOW_HOURS = 24
+GAME_MATCH_WINDOW_HOURS = 3
 
 
 def _parse_iso_datetime(value: str | None) -> datetime | None:
@@ -55,14 +55,17 @@ async def _find_game_by_matchup(
     if start_time is None:
         return candidates[0]
 
+    best_match: tuple[float, Game] | None = None
     for game in candidates:
         game_start = _coerce_utc(game.start_time)
         if game_start is None:
             continue
         delta_hours = abs((game_start - start_time).total_seconds()) / 3600
-        if delta_hours <= GAME_MATCH_WINDOW_HOURS:
-            return game
-    return None
+        if delta_hours > GAME_MATCH_WINDOW_HOURS:
+            continue
+        if best_match is None or delta_hours < best_match[0]:
+            best_match = (delta_hours, game)
+    return best_match[1] if best_match else None
 
 
 async def upsert_game_from_scoreboard(db: AsyncSession, payload: dict) -> Game:
@@ -105,9 +108,13 @@ async def upsert_game_from_scoreboard(db: AsyncSession, payload: dict) -> Game:
         game.latest_away_score = payload.get("away_score")
         if espn_id:
             game.espn_id = espn_id
-    if str(payload.get("status", "")).lower() in {"final", "status_final", "post"}:
+    normalized_status = str(payload.get("status", "")).lower()
+    if normalized_status in {"final", "status_final", "post"}:
         game.final_home_score = payload.get("home_score")
         game.final_away_score = payload.get("away_score")
+    else:
+        game.final_home_score = None
+        game.final_away_score = None
 
     await db.flush()
     return game

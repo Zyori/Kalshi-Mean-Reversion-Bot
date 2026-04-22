@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useGame, useGames } from "../hooks/useMarkets";
+import type { GameEvent } from "../lib/api";
 import { Badge } from "../components/ui/Badge";
 import { Card } from "../components/ui/Card";
 import { Skeleton } from "../components/ui/Skeleton";
@@ -8,6 +9,7 @@ import {
   formatLine,
   formatPercent,
   formatRelative,
+  isLiveStatus,
   isFinalStatus,
   platformTimeLabel,
   sortGamesByPriority,
@@ -15,6 +17,48 @@ import {
 } from "../lib/utils";
 
 const SPORTS = ["all", "nhl", "nba", "mlb", "nfl", "soccer", "ufc"] as const;
+
+function buildEventFeed(events: GameEvent[]) {
+  const grouped = new Map<
+    string,
+    {
+      event: GameEvent;
+      marketCategories: string[];
+      classifications: string[];
+    }
+  >();
+
+  for (const event of events) {
+    const key = [
+      event.detected_at,
+      event.event_type,
+      event.description ?? "",
+      event.home_score ?? "",
+      event.away_score ?? "",
+      event.period ?? "",
+      event.clock ?? "",
+    ].join("|");
+
+    const existing = grouped.get(key);
+    if (!existing) {
+      grouped.set(key, {
+        event,
+        marketCategories: event.market_category ? [event.market_category] : [],
+        classifications: event.classification ? [event.classification] : [],
+      });
+      continue;
+    }
+
+    if (event.market_category && !existing.marketCategories.includes(event.market_category)) {
+      existing.marketCategories.push(event.market_category);
+    }
+    if (event.classification && !existing.classifications.includes(event.classification)) {
+      existing.classifications.push(event.classification);
+    }
+  }
+
+  return Array.from(grouped.values());
+}
 
 export function DataPage() {
   const [sport, setSport] = useState<string>("all");
@@ -46,6 +90,13 @@ export function DataPage() {
   }, [activeGames, historyGames]);
 
   const { data: selectedGame, isLoading: loadingGame } = useGame(selectedGameId ?? 0);
+  const selectedGameHasLiveFeed = Boolean(
+    selectedGame && (isLiveStatus(selectedGame.status) || isFinalStatus(selectedGame.status)),
+  );
+  const selectedEventFeed = useMemo(
+    () => (selectedGameHasLiveFeed ? buildEventFeed(selectedGame?.events ?? []) : []),
+    [selectedGame, selectedGameHasLiveFeed],
+  );
 
   const trackedActiveGames = useMemo(
     () =>
@@ -144,10 +195,12 @@ export function DataPage() {
                           )}
                         </div>
                         {(game.latest_home_score != null || game.latest_away_score != null) && (
+                          !isFinalStatus(game.status) && !isLiveStatus(game.status) ? null : (
                           <div className="text-xs text-text-dim">
                             Score {game.away_team} {game.latest_away_score ?? "-"} -{" "}
                             {game.latest_home_score ?? "-"} {game.home_team}
                           </div>
+                          )
                         )}
                       </div>
                     </button>
@@ -279,12 +332,12 @@ export function DataPage() {
                 </div>
 
                 <div className="grid gap-3 md:grid-cols-3">
-                  <div className="rounded-lg bg-surface-2 p-3">
-                    <div className="text-xs uppercase tracking-wide text-text-dim">
-                      Event Count
+                    <div className="rounded-lg bg-surface-2 p-3">
+                      <div className="text-xs uppercase tracking-wide text-text-dim">
+                        Event Count
+                      </div>
+                      <div className="mt-1 text-xl font-semibold">{selectedEventFeed.length}</div>
                     </div>
-                    <div className="mt-1 text-xl font-semibold">{selectedGame.events.length}</div>
-                  </div>
                   <div className="rounded-lg bg-surface-2 p-3">
                     <div className="text-xs uppercase tracking-wide text-text-dim">
                       Opening Snapshots
@@ -297,12 +350,12 @@ export function DataPage() {
                     <div className="text-xs uppercase tracking-wide text-text-dim">
                       Last Capture
                     </div>
-                    <div className="mt-1 text-sm font-medium">
-                      {selectedGame.events[0]?.detected_at
-                        ? formatRelative(selectedGame.events[0].detected_at)
+                      <div className="mt-1 text-sm font-medium">
+                      {selectedEventFeed[0]?.event.detected_at
+                        ? formatRelative(selectedEventFeed[0].event.detected_at)
                         : "--"}
+                      </div>
                     </div>
-                  </div>
                 </div>
 
                 <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
@@ -341,28 +394,38 @@ export function DataPage() {
 
                   <div className="space-y-2">
                     <h4 className="text-sm font-medium text-text-dim">Captured Events</h4>
-                    {selectedGame.events.length === 0 ? (
+                    {!selectedGameHasLiveFeed ? (
+                      <div className="rounded-lg bg-surface-2 p-3 text-sm text-text-dim">
+                        Live capture begins once the game is in progress.
+                      </div>
+                    ) : selectedEventFeed.length === 0 ? (
                       <div className="rounded-lg bg-surface-2 p-3 text-sm text-text-dim">
                         No events captured for this game yet
                       </div>
                     ) : (
-                      selectedGame.events.map((event) => (
+                      selectedEventFeed.map(({ event, marketCategories, classifications }) => (
                         <div key={event.id} className="rounded-lg bg-surface-2 p-3">
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <div className="flex items-center gap-2">
                               <Badge className="bg-surface-3 text-text-dim uppercase text-[10px]">
                                 {event.event_type}
                               </Badge>
-                              {event.market_category && (
-                                <Badge className="bg-surface-3 text-text-dim uppercase text-[10px]">
-                                  {event.market_category}
+                              {marketCategories.map((category) => (
+                                <Badge
+                                  key={`${event.id}-${category}`}
+                                  className="bg-surface-3 text-text-dim uppercase text-[10px]"
+                                >
+                                  {category}
                                 </Badge>
-                              )}
-                              {event.classification && (
-                                <Badge className="bg-accent/15 text-accent-light">
-                                  {event.classification}
+                              ))}
+                              {classifications.map((classification) => (
+                                <Badge
+                                  key={`${event.id}-${classification}`}
+                                  className="bg-accent/15 text-accent-light"
+                                >
+                                  {classification}
                                 </Badge>
-                              )}
+                              ))}
                             </div>
                             <span className="text-xs text-text-dim">
                               {formatDate(event.detected_at)}

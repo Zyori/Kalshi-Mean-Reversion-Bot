@@ -212,3 +212,34 @@ async def test_record_opening_line_handles_naive_datetime_from_existing_sqlite_r
         refreshed = await db.get(Game, existing.id)
         assert refreshed is not None
         assert refreshed.opening_total == pytest.approx(8.5)
+
+
+async def test_record_opening_line_does_not_merge_doubleheaders(db_session_factory):
+    async with db_session_factory() as db:
+        existing = Game(
+            sport="mlb",
+            home_team="Miami Marlins",
+            away_team="St. Louis Cardinals",
+            start_time=datetime(2026, 4, 22, 16, 10, tzinfo=UTC),
+            espn_id="401815047",
+            status="STATUS_SCHEDULED",
+        )
+        db.add(existing)
+        await db.flush()
+
+        earlier_game = await record_opening_line(
+            db,
+            {
+                "sport": "mlb",
+                "home_team": "Miami Marlins",
+                "away_team": "St. Louis Cardinals",
+                "start_time": "2026-04-22T12:10:00Z",
+                "source": "odds_api",
+                "home_prob": 0.48,
+                "away_prob": 0.52,
+                "captured_at": "2026-04-22T10:00:00Z",
+            },
+        )
+        await db.commit()
+
+        assert earlier_game.id != existing.id
