@@ -67,7 +67,7 @@ async def test_trade_gate_allows_clean_candidate(db_session_factory):
                 "confidence_score": 0.78,
                 "deviation": 0.31,
             },
-            {"side": "yes", "entry_price": 25},
+            {"side": "yes", "entry_price": 25, "market_category": "moneyline"},
         )
         assert reason is None
 
@@ -98,7 +98,7 @@ async def test_trade_gate_blocks_same_event_retrade(db_session_factory):
                 "confidence_score": 0.78,
                 "deviation": 0.31,
             },
-            {"side": "yes", "entry_price": 25},
+            {"side": "yes", "entry_price": 25, "market_category": "moneyline"},
         )
         assert reason == "event_already_traded"
 
@@ -115,7 +115,7 @@ async def test_trade_gate_blocks_low_confidence(db_session_factory):
                 "confidence_score": 0.2,
                 "deviation": 0.31,
             },
-            {"side": "yes", "entry_price": 25},
+            {"side": "yes", "entry_price": 25, "market_category": "moneyline"},
         )
         assert reason == "confidence_below_threshold"
 
@@ -146,7 +146,7 @@ async def test_trade_gate_allows_ladder_when_market_moves(db_session_factory):
                 "confidence_score": 0.78,
                 "deviation": 0.31,
             },
-            {"side": "yes", "entry_price": 18},
+            {"side": "yes", "entry_price": 18, "market_category": "moneyline"},
         )
         assert reason is None
 
@@ -177,7 +177,7 @@ async def test_trade_gate_blocks_unchanged_market_state(db_session_factory):
                 "confidence_score": 0.78,
                 "deviation": 0.31,
             },
-            {"side": "yes", "entry_price": 22},
+            {"side": "yes", "entry_price": 22, "market_category": "moneyline"},
         )
         assert reason == "market_state_unchanged"
 
@@ -209,6 +209,40 @@ async def test_trade_gate_respects_open_trade_cap(db_session_factory):
                 "confidence_score": 0.78,
                 "deviation": 0.31,
             },
-            {"side": "yes", "entry_price": 4},
+            {"side": "yes", "entry_price": 4, "market_category": "moneyline"},
         )
         assert reason == "market_position_limit"
+
+
+async def test_trade_gate_uses_lower_spread_thresholds(db_session_factory):
+    async with db_session_factory() as db:
+        market = await _seed_market(db)
+        reason = await evaluate_trade_gate(
+            db,
+            {
+                "classification": "reversion_candidate",
+                "market_id": market.id,
+                "game_event_id": 10,
+                "confidence_score": 0.29,
+                "deviation": 0.05,
+            },
+            {"side": "yes", "entry_price": 42, "market_category": "spread"},
+        )
+        assert reason is None
+
+
+async def test_trade_gate_still_blocks_weak_total_signal(db_session_factory):
+    async with db_session_factory() as db:
+        market = await _seed_market(db)
+        reason = await evaluate_trade_gate(
+            db,
+            {
+                "classification": "reversion_candidate",
+                "market_id": market.id,
+                "game_event_id": 11,
+                "confidence_score": 0.24,
+                "deviation": 0.03,
+            },
+            {"side": "yes", "entry_price": 44, "market_category": "total"},
+        )
+        assert reason in {"confidence_below_threshold", "deviation_below_threshold"}

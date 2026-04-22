@@ -5,6 +5,24 @@ from src.config import settings
 from src.models.trade import PaperTrade
 
 
+def _confidence_threshold(market_category: str | None) -> float:
+    thresholds = {
+        "moneyline": settings.paper_trade_min_confidence_moneyline,
+        "spread": settings.paper_trade_min_confidence_spread,
+        "total": settings.paper_trade_min_confidence_total,
+    }
+    return thresholds.get(market_category or "", settings.paper_trade_min_confidence)
+
+
+def _deviation_threshold(market_category: str | None) -> float:
+    thresholds = {
+        "moneyline": settings.paper_trade_min_deviation_moneyline,
+        "spread": settings.paper_trade_min_deviation_spread,
+        "total": settings.paper_trade_min_deviation_total,
+    }
+    return thresholds.get(market_category or "", settings.paper_trade_min_deviation)
+
+
 async def evaluate_trade_gate(
     db: AsyncSession,
     event: dict,
@@ -17,12 +35,13 @@ async def evaluate_trade_gate(
     if market_id is None:
         return "missing_market"
 
+    market_category = trade.get("market_category") or event.get("market_category")
     confidence = float(event.get("confidence_score") or 0.0)
-    if confidence < settings.paper_trade_min_confidence:
+    if confidence < _confidence_threshold(market_category):
         return "confidence_below_threshold"
 
     deviation = float(event.get("deviation") or 0.0)
-    if deviation < settings.paper_trade_min_deviation:
+    if deviation < _deviation_threshold(market_category):
         return "deviation_below_threshold"
 
     game_event_id = event.get("game_event_id")
