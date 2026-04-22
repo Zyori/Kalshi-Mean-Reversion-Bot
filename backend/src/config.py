@@ -40,6 +40,8 @@ class Settings(BaseSettings):
     paper_bankroll_start_cents: int = 100000
     paper_trade_min_confidence: float = 0.35
     paper_trade_min_deviation: float = 0.08
+    paper_trade_max_open_per_market: int = 3
+    paper_trade_reentry_min_price_move_cents: int = 5
 
     @field_validator("kalshi_private_key_path")
     @classmethod

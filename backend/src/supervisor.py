@@ -157,18 +157,18 @@ async def _trader_loop(
         try:
             opportunity = await trade_queue.get()
             async with session_factory() as db:
-                skip_reason = await evaluate_trade_gate(db, opportunity)
-                if skip_reason:
-                    logger.info(
-                        "paper_trade_skipped",
-                        market_id=opportunity.get("market_id"),
-                        game_event_id=opportunity.get("game_event_id"),
-                        reason=skip_reason,
-                    )
-                    continue
-
                 trade = simulator.evaluate_opportunity(opportunity)
                 if trade:
+                    skip_reason = await evaluate_trade_gate(db, opportunity, trade)
+                    if skip_reason:
+                        logger.info(
+                            "paper_trade_skipped",
+                            market_id=opportunity.get("market_id"),
+                            game_event_id=opportunity.get("game_event_id"),
+                            reason=skip_reason,
+                        )
+                        continue
+
                     record = await persist_trade(
                         db,
                         trade,
