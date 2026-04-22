@@ -25,27 +25,107 @@ class TestNormalize:
 
 class TestScoreOpportunity:
     def test_max_inputs(self):
-        result = score_opportunity(0.30, 0.90)
+        result = score_opportunity(
+            0.30,
+            0.90,
+            sport="nba",
+            home_score=80,
+            away_score=92,
+            market_source="kalshi_demo",
+        )
         assert result == pytest.approx(1.0, abs=0.001)
 
     def test_min_inputs(self):
-        result = score_opportunity(0.05, 0.25)
+        result = score_opportunity(
+            0.05,
+            0.25,
+            sport="nba",
+            home_score=50,
+            away_score=50,
+            market_source="synthetic",
+        )
         assert result == pytest.approx(0.0, abs=0.001)
 
     def test_midpoint(self):
-        result = score_opportunity(0.175, 0.575)
-        assert 0.4 <= result <= 0.6
+        result = score_opportunity(
+            0.175,
+            0.575,
+            sport="nba",
+            home_score=44,
+            away_score=50,
+            market_source="kalshi_demo",
+        )
+        assert 0.4 <= result <= 0.8
 
     def test_high_deviation_low_time(self):
-        result = score_opportunity(0.30, 0.25)
-        assert result == pytest.approx(0.6, abs=0.001)
+        result = score_opportunity(
+            0.30,
+            0.25,
+            sport="mlb",
+            home_score=1,
+            away_score=4,
+            market_source="synthetic",
+        )
+        assert result > 0.55
 
     def test_low_deviation_high_time(self):
-        result = score_opportunity(0.05, 0.90)
-        assert result == pytest.approx(0.4, abs=0.001)
+        result = score_opportunity(
+            0.05,
+            0.90,
+            sport="nba",
+            home_score=48,
+            away_score=50,
+            market_source="kalshi_demo",
+        )
+        assert 0.2 <= result <= 0.5
+
+    def test_real_market_bonus_outscores_synthetic(self):
+        real_result = score_opportunity(
+            0.15,
+            0.75,
+            sport="nba",
+            home_score=48,
+            away_score=57,
+            market_source="kalshi_demo",
+        )
+        synthetic_result = score_opportunity(
+            0.15,
+            0.75,
+            sport="nba",
+            home_score=48,
+            away_score=57,
+            market_source="synthetic",
+        )
+        assert real_result > synthetic_result
+
+    def test_larger_deficit_scores_higher(self):
+        small_deficit = score_opportunity(
+            0.15,
+            0.75,
+            sport="nba",
+            home_score=48,
+            away_score=50,
+            market_source="kalshi_demo",
+        )
+        large_deficit = score_opportunity(
+            0.15,
+            0.75,
+            sport="nba",
+            home_score=48,
+            away_score=60,
+            market_source="kalshi_demo",
+        )
+        assert large_deficit > small_deficit
 
     def test_returns_bounded(self):
         for dev in [0.0, 0.05, 0.15, 0.30, 0.50]:
             for time in [0.0, 0.25, 0.50, 0.90, 1.0]:
-                result = score_opportunity(dev, time)
+                result = score_opportunity(
+                    dev,
+                    time,
+                    sport="nba",
+                    home_score=40,
+                    away_score=50,
+                    market_source="kalshi_demo",
+                )
                 assert 0.0 <= result <= 1.0

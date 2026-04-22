@@ -55,7 +55,14 @@ class EventDetector:
             deviation = abs(baseline - kalshi_prob)
             time_remaining = _estimate_time_remaining(sport, period)
 
-            confidence = score_opportunity(deviation, time_remaining)
+            confidence = score_opportunity(
+                deviation,
+                time_remaining,
+                sport=sport,
+                home_score=home_score,
+                away_score=away_score,
+                market_source=event.get("market_source"),
+            )
             event["confidence_score"] = confidence
             event["deviation"] = deviation
 
