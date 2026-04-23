@@ -226,6 +226,8 @@ export interface PublicStatus {
 export interface StrategyPolicyMarket {
   market_category: string;
   source: string;
+  status: string;
+  status_note: string;
   summary: string;
   confidence_threshold: number;
   deviation_threshold: number;

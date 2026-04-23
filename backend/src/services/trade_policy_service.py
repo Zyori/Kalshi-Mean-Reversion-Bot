@@ -3,27 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
 from src.models.trade import PaperTrade
-
-
-def get_trade_gate_settings() -> dict[str, dict[str, float]]:
-    return {
-        "moneyline": {
-            "confidence": settings.paper_trade_min_confidence_moneyline,
-            "deviation": settings.paper_trade_min_deviation_moneyline,
-        },
-        "spread": {
-            "confidence": settings.paper_trade_min_confidence_spread,
-            "deviation": settings.paper_trade_min_deviation_spread,
-        },
-        "total": {
-            "confidence": settings.paper_trade_min_confidence_total,
-            "deviation": settings.paper_trade_min_deviation_total,
-        },
-        "team_total": {
-            "confidence": settings.paper_trade_min_confidence_total,
-            "deviation": settings.paper_trade_min_deviation_total,
-        },
-    }
+from src.strategy.market_policy import get_trade_gate_settings
 
 
 def _confidence_threshold(market_category: str | None) -> float:

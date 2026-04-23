@@ -35,6 +35,10 @@ async def test_strategy_catalog_exposes_live_policy(
 
     markets = {entry["market_category"]: entry for entry in body["trade_policy"]["markets"]}
     assert set(markets) == {"moneyline", "spread", "total", "team_total"}
+    assert markets["moneyline"]["status"] == "live"
+    assert markets["spread"]["status"] == "live"
+    assert markets["total"]["status"] == "live"
+    assert markets["team_total"]["status"] == "conditional"
     assert markets["team_total"]["confidence_threshold"] == markets["total"]["confidence_threshold"]
     assert markets["team_total"]["deviation_threshold"] == markets["total"]["deviation_threshold"]
 

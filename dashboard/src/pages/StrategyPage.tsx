@@ -12,6 +12,12 @@ const MARKET_LABELS: Record<string, string> = {
   team_total: "Team Total",
 };
 
+const MARKET_STATUS_STYLES: Record<string, string> = {
+  live: "bg-profit/20 text-profit",
+  conditional: "bg-amber-500/15 text-amber-300",
+  planned: "bg-surface-3 text-text-dim",
+};
+
 function formatSeconds(value: number): string {
   if (value >= 3600) return `${(value / 3600).toFixed(value % 3600 === 0 ? 0 : 1)}h`;
   if (value >= 60) return `${(value / 60).toFixed(value % 60 === 0 ? 0 : 1)}m`;
@@ -48,6 +54,10 @@ export function StrategyPage() {
       </div>
     );
   }
+
+  const tradePolicyByCategory = Object.fromEntries(
+    data.trade_policy.markets.map((market) => [market.market_category, market]),
+  );
 
   return (
     <div className="space-y-6">
@@ -106,6 +116,14 @@ export function StrategyPage() {
                     <Badge className="bg-accent/15 text-accent-light">
                       {MARKET_LABELS[market.market_category] ?? market.market_category}
                     </Badge>
+                    <Badge
+                      className={
+                        MARKET_STATUS_STYLES[market.status] ??
+                        MARKET_STATUS_STYLES.planned
+                      }
+                    >
+                      {market.status === "conditional" ? "Conditional" : "Live"}
+                    </Badge>
                     <span className="text-xs text-text-dim">{market.source}</span>
                   </div>
                   <div className="flex items-center gap-4 text-xs text-text-dim">
@@ -114,6 +132,7 @@ export function StrategyPage() {
                   </div>
                 </div>
                 <p className="mt-2 text-sm text-text-dim">{market.summary}</p>
+                <p className="mt-2 text-xs text-text-dim">{market.status_note}</p>
               </div>
             ))}
           </div>
@@ -217,9 +236,22 @@ export function StrategyPage() {
               <div className="rounded-lg border border-border bg-surface-2 p-4">
                 <div className="flex items-center justify-between gap-3">
                   <h5 className="text-sm font-medium">Moneyline</h5>
-                  <Badge className="bg-accent/15 text-accent-light">Live</Badge>
+                  <Badge
+                    className={
+                      MARKET_STATUS_STYLES[
+                        tradePolicyByCategory.moneyline?.status ?? "planned"
+                      ] ?? MARKET_STATUS_STYLES.planned
+                    }
+                  >
+                    {tradePolicyByCategory.moneyline?.status === "conditional"
+                      ? "Conditional"
+                      : "Live"}
+                  </Badge>
                 </div>
                 <p className="mt-2 text-sm text-text-dim">{sport.moneyline.summary}</p>
+                <p className="mt-2 text-xs text-text-dim">
+                  {tradePolicyByCategory.moneyline?.status_note}
+                </p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {Object.entries(sport.moneyline.params).map(([key, value]) => (
                     <Badge
@@ -233,15 +265,31 @@ export function StrategyPage() {
               </div>
 
               <div className="space-y-3">
-                {sport.markets.map((market) => (
+                {sport.markets.map((market) => {
+                  const marketPolicy = tradePolicyByCategory[market.market_category];
+                  return (
                   <div
                     key={market.market_category}
                     className="rounded-lg border border-border bg-surface-2 p-4"
                   >
                     <div className="flex items-center justify-between gap-3">
-                      <h5 className="text-sm font-medium">
-                        {MARKET_LABELS[market.market_category] ?? market.market_category}
-                      </h5>
+                      <div className="flex items-center gap-2">
+                        <h5 className="text-sm font-medium">
+                          {MARKET_LABELS[market.market_category] ?? market.market_category}
+                        </h5>
+                        {marketPolicy ? (
+                          <Badge
+                            className={
+                              MARKET_STATUS_STYLES[marketPolicy.status] ??
+                              MARKET_STATUS_STYLES.planned
+                            }
+                          >
+                            {marketPolicy.status === "conditional"
+                              ? "Conditional"
+                              : "Live"}
+                          </Badge>
+                        ) : null}
+                      </div>
                       {market.candidate_edge_min != null &&
                       market.candidate_edge_max != null ? (
                         <span className="text-xs text-text-dim">
@@ -251,6 +299,11 @@ export function StrategyPage() {
                       ) : null}
                     </div>
                     <p className="mt-2 text-sm text-text-dim">{market.summary}</p>
+                    {marketPolicy?.status_note ? (
+                      <p className="mt-2 text-xs text-text-dim">
+                        {marketPolicy.status_note}
+                      </p>
+                    ) : null}
                     {market.structural_edge != null && (
                       <div className="mt-3 flex items-center gap-4 text-xs text-text-dim">
                         <span>
@@ -259,7 +312,8 @@ export function StrategyPage() {
                       </div>
                     )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </Card>
           ))}

@@ -2,8 +2,8 @@ from collections.abc import Mapping
 from typing import Any
 
 from src.config import settings
-from src.services.trade_policy_service import get_trade_gate_settings
 from src.strategy.classifier import CLASSIFIER_MAP
+from src.strategy.market_policy import get_market_policy
 from src.strategy.sports.common import (
     HIGH_LEVERAGE_EVENT_TOKENS,
     SCORING_EVENT_TOKENS,
@@ -80,31 +80,6 @@ MONEYLINE_SUMMARIES: dict[str, str] = {
     ),
 }
 
-MARKET_SUMMARIES: dict[str, str] = {
-    "spread": (
-        "Fade temporary cover-margin overshoots back toward the opening "
-        "spread when the move is event-driven, not structural."
-    ),
-    "total": (
-        "Fade temporary pace shocks back toward the opening total when "
-        "scoring bursts or leverage events push projections out of line."
-    ),
-    "team_total": (
-        "Fade temporary team scoring pace shocks back toward the opening "
-        "team total for the home or away side independently."
-    ),
-}
-
-MARKET_SOURCES: dict[str, str] = {
-    "moneyline": "Real Kalshi demo moneyline when matched, otherwise synthetic home-win pricing.",
-    "spread": "Synthetic spread rail built from opening spread and live score state.",
-    "total": "Synthetic game total rail built from opening total and live pace projection.",
-    "team_total": (
-        "Synthetic home and away team-total rails built from opening "
-        "team totals and live team scoring pace."
-    ),
-}
-
 
 def _classifier_params() -> dict[str, dict[str, Any]]:
     params: dict[str, dict[str, Any]] = {}
@@ -132,41 +107,8 @@ def _band_payload(
 
 
 def get_strategy_catalog() -> dict[str, Any]:
-    gate_settings = get_trade_gate_settings()
+    market_policy = get_market_policy()
     classifier_params = _classifier_params()
-    market_policy = [
-        {
-            "market_category": "moneyline",
-            "source": MARKET_SOURCES["moneyline"],
-            "summary": (
-                "Trade the opener or matched Kalshi price when a live event "
-                "temporarily overstates the favorite's new win probability."
-            ),
-            "confidence_threshold": gate_settings["moneyline"]["confidence"],
-            "deviation_threshold": gate_settings["moneyline"]["deviation"],
-        },
-        {
-            "market_category": "spread",
-            "source": MARKET_SOURCES["spread"],
-            "summary": MARKET_SUMMARIES["spread"],
-            "confidence_threshold": gate_settings["spread"]["confidence"],
-            "deviation_threshold": gate_settings["spread"]["deviation"],
-        },
-        {
-            "market_category": "total",
-            "source": MARKET_SOURCES["total"],
-            "summary": MARKET_SUMMARIES["total"],
-            "confidence_threshold": gate_settings["total"]["confidence"],
-            "deviation_threshold": gate_settings["total"]["deviation"],
-        },
-        {
-            "market_category": "team_total",
-            "source": MARKET_SOURCES["team_total"],
-            "summary": MARKET_SUMMARIES["team_total"],
-            "confidence_threshold": gate_settings["team_total"]["confidence"],
-            "deviation_threshold": gate_settings["team_total"]["deviation"],
-        },
-    ]
 
     sports = []
     for sport in SPORT_DISPLAY_NAMES:
@@ -183,7 +125,7 @@ def get_strategy_catalog() -> dict[str, Any]:
                 "markets": [
                     {
                         "market_category": "spread",
-                        "summary": MARKET_SUMMARIES["spread"],
+                        "summary": str(market_policy["spread"]["summary"]),
                         **(
                             _band_payload(
                                 SPREAD_CANDIDATE_EDGES,
@@ -195,7 +137,7 @@ def get_strategy_catalog() -> dict[str, Any]:
                     },
                     {
                         "market_category": "total",
-                        "summary": MARKET_SUMMARIES["total"],
+                        "summary": str(market_policy["total"]["summary"]),
                         **(
                             _band_payload(
                                 TOTAL_CANDIDATE_EDGES,
@@ -207,7 +149,7 @@ def get_strategy_catalog() -> dict[str, Any]:
                     },
                     {
                         "market_category": "team_total",
-                        "summary": MARKET_SUMMARIES["team_total"],
+                        "summary": str(market_policy["team_total"]["summary"]),
                         **(
                             _band_payload(
                                 TEAM_TOTAL_CANDIDATE_EDGES,
@@ -237,7 +179,7 @@ def get_strategy_catalog() -> dict[str, Any]:
             "paper_bankroll_start_cents": settings.paper_bankroll_start_cents,
             "max_open_per_market": settings.paper_trade_max_open_per_market,
             "reentry_min_price_move_cents": settings.paper_trade_reentry_min_price_move_cents,
-            "markets": market_policy,
+            "markets": list(market_policy.values()),
             "notes": [
                 (
                     "Synthetic spread, total, and team-total rails only "
