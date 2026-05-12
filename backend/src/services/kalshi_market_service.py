@@ -140,16 +140,17 @@ def _depth(levels: list[list[str]]) -> int | None:
     return round(sum(float(quantity) for _price, quantity in levels))
 
 
-async def attach_real_market_context(
+async def capture_market_snapshot(
     db: AsyncSession,
     rest: KalshiRestClient,
-    game: Game,
-    event: dict[str, Any],
+    market: Market,
 ) -> dict[str, Any] | None:
-    market = await ensure_real_kalshi_market(db, rest, game)
-    if market is None:
-        return None
+    """Fetch the current Kalshi orderbook for `market`, persist a MarketSnapshot,
+    and return the parsed quote (or None if the book has no askable side).
 
+    Single source of truth for "record a Kalshi price point" — used both by the
+    event-driven context attach path and the periodic snapshot loop.
+    """
     orderbook = await rest.get_orderbook(market.kalshi_ticker, depth=5)
     orderbook_fp = orderbook.get("orderbook_fp") or {}
     yes_levels = orderbook_fp.get("yes_dollars") or []
@@ -161,6 +162,7 @@ async def attach_real_market_context(
     no_ask = 100 - yes_bid if yes_bid is not None else None
     if yes_ask is None:
         return None
+
     yes_ask_depth = _depth(no_levels)
     no_ask_depth = _depth(yes_levels)
 
@@ -175,18 +177,57 @@ async def attach_real_market_context(
     db.add(snapshot)
     await db.flush()
 
+    return {
+        "yes_bid": yes_bid,
+        "yes_ask": yes_ask,
+        "no_ask": no_ask,
+        "yes_ask_depth": yes_ask_depth,
+        "no_ask_depth": no_ask_depth,
+    }
+
+
+async def attach_real_market_context(
+    db: AsyncSession,
+    rest: KalshiRestClient,
+    game: Game,
+    event: dict[str, Any],
+) -> dict[str, Any] | None:
+    market = await ensure_real_kalshi_market(db, rest, game)
+    if market is None:
+        return None
+
+    quote = await capture_market_snapshot(db, rest, market)
+    if quote is None:
+        return None
+
     event["market_id"] = market.id
     event["market_type"] = market.market_type
     event["market_category"] = "moneyline"
     event["market_source"] = "kalshi_demo"
     event["market_label_yes"] = game.home_team
     event["market_label_no"] = game.away_team
-    event["kalshi_price_at"] = yes_ask
-    event["kalshi_yes_bid"] = yes_bid
-    event["kalshi_yes_ask"] = yes_ask
-    event["kalshi_no_ask"] = no_ask
-    event["kalshi_yes_ask_depth"] = yes_ask_depth
-    event["kalshi_no_ask_depth"] = no_ask_depth
-    event["ask_depth"] = yes_ask_depth
+    event["kalshi_price_at"] = quote["yes_ask"]
+    event["kalshi_yes_bid"] = quote["yes_bid"]
+    event["kalshi_yes_ask"] = quote["yes_ask"]
+    event["kalshi_no_ask"] = quote["no_ask"]
+    event["kalshi_yes_ask_depth"] = quote["yes_ask_depth"]
+    event["kalshi_no_ask_depth"] = quote["no_ask_depth"]
+    event["ask_depth"] = quote["yes_ask_depth"]
     event["fair_prob_yes"] = game.opening_line_home_prob or 0.5
     return event
+
+
+async def active_markets_for_sports(
+    db: AsyncSession,
+    sports: list[str],
+) -> list[Market]:
+    """All unresolved Kalshi markets attached to games in the given sports.
+    Used by the periodic snapshot loop to maintain a price time series."""
+    if not sports:
+        return []
+    result = await db.execute(
+        select(Market)
+        .join(Game, Market.game_id == Game.id)
+        .where(Market.resolved_at.is_(None), Game.sport.in_(sports))
+    )
+    return list(result.scalars())

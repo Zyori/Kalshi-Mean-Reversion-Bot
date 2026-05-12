@@ -30,12 +30,12 @@ Dashboard       → Markets / Trades / Analytics views
 
 ## Current Phase-1 Status
 
-- Persisted today: games, opening lines, and significant ESPN events.
+- Persisted: games, opening lines, ESPN events, **Kalshi orderbook snapshots** (event-driven + periodic time-series).
 - Adaptive polling: idle schedule sync backs off heavily, live games poll quickly.
 - Auth: password-protected admin backend with separate public status endpoints.
-- Kalshi mode: configured for `demo` by default, but live market snapshot capture is still an integration step rather than a finished data path.
+- Kalshi mode: configured for `demo` by default. Market discovery, snapshot capture, and paper-trader integration are all wired through `attach_real_market_context` and the periodic `_snapshot_loop`.
 
-This means the project is ready to start building a historical dataset, but not yet ready to claim end-to-end market replay or meaningful paper-trade analytics from Kalshi prices.
+The bot is ready to build a historical dataset *and* maintain a price time series for active sports. Kalshi WS streaming is implemented but not yet wired into the supervisor — it's the next step for higher-frequency snapshots and lower API budget.
 
 ## Sports Covered
 
@@ -90,6 +90,7 @@ The dashboard proxies `/api` requests to the backend at `localhost:8000`.
 | `SCOREBOARD_IDLE_POLL_INTERVAL_S` | No | Idle schedule-sync cadence, default `43200` |
 | `ODDS_POLL_INTERVAL_S` | No | Opening-line sync cadence, default `43200` |
 | `EVENTS_POLL_INTERVAL_S` | No | Live event cadence for watched games, default `15` |
+| `KALSHI_SNAPSHOT_POLL_INTERVAL_S` | No | Periodic Kalshi orderbook snapshot cadence for active markets, default `30` |
 
 ## Testing
 

@@ -12,11 +12,22 @@ from src.core.types import KALSHI_URLS
 
 logger = get_logger(__name__)
 
+# Kalshi series tickers we look at, grouped by our internal sport key.
+# Single source of truth for "which Kalshi series does each sport map to."
+# Tickers are best-effort and subject to verification once the live bot
+# starts hitting markets — confirm against /events?series_ticker=... before
+# trusting in production. WORLDCUP / MLS / FRIENDLY tickers may need updating
+# closer to the 2026 tournament when Kalshi finalizes their listings.
 SPORT_SERIES_PREFIXES: dict[str, tuple[str, ...]] = {
     "nba": ("KXNBAGAME",),
     "nhl": ("KXNHLGAME",),
     "mlb": ("KXMLBGAME",),
-    "soccer": ("KXPREMIERLEAGUE",),
+    "soccer": (
+        "KXPREMIERLEAGUE",
+        "KXWORLDCUP",
+        "KXMLSGAME",
+        "KXSOCCERGAME",
+    ),
 }
 
 

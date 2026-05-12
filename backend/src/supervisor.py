@@ -23,7 +23,11 @@ from src.services.ingestion_service import (
     record_opening_line,
     upsert_game_from_scoreboard,
 )
-from src.services.kalshi_market_service import attach_real_market_context
+from src.services.kalshi_market_service import (
+    active_markets_for_sports,
+    attach_real_market_context,
+    capture_market_snapshot,
+)
 from src.services.paper_runtime import (
     attach_synthetic_market_contexts,
     get_game_by_espn_id,
@@ -153,6 +157,40 @@ async def _events_loop(
         except Exception:
             logger.exception("events_loop_error")
         await asyncio.sleep(settings.events_poll_interval_s)
+
+
+async def _snapshot_loop(
+    kalshi_rest: KalshiRestClient,
+    session_factory: async_sessionmaker,
+) -> None:
+    """Periodic Kalshi orderbook snapshots for active-sport markets.
+
+    Builds the price time series we'd otherwise miss when no in-game event
+    fires (e.g. a quiet 30-min stretch). Event-driven snapshots (via
+    `attach_real_market_context`) remain authoritative for the trader; this
+    loop is purely for research/analytics density.
+    """
+    while True:
+        try:
+            active_sports = [s.value for s in registry.sport_config.active_sports()]
+            if active_sports:
+                async with session_factory() as db:
+                    markets = await active_markets_for_sports(db, active_sports)
+                    for market in markets:
+                        try:
+                            await capture_market_snapshot(db, kalshi_rest, market)
+                        except Exception:
+                            logger.exception(
+                                "snapshot_capture_failed",
+                                market_id=market.id,
+                                ticker=market.kalshi_ticker,
+                            )
+                    await db.commit()
+                    if markets:
+                        logger.info("snapshots_captured", count=len(markets))
+        except Exception:
+            logger.exception("snapshot_loop_error")
+        await asyncio.sleep(settings.kalshi_snapshot_poll_interval_s)
 
 
 async def _odds_loop(
@@ -296,6 +334,7 @@ async def run_supervisor(session_factory: async_sessionmaker) -> None:
                 _events_loop(events_poller, detector, trade_queue, kalshi_rest, session_factory)
             )
             tg.create_task(_odds_loop(odds, detector, session_factory))
+            tg.create_task(_snapshot_loop(kalshi_rest, session_factory))
             tg.create_task(_trader_loop(trade_queue, simulator, accumulators, session_factory))
     except* Exception as eg:
         for exc in eg.exceptions:
