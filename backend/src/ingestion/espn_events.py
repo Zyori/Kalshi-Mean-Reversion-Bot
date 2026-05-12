@@ -89,16 +89,25 @@ SPORT_EVENT_MARKERS: dict[str, tuple[str, ...]] = {
         "two-point",
         "field goal",
     ),
+    # Soccer markers focus on events that actually move a moneyline price.
+    # Match against ESPN's canonical type.text (cleanest signal), plus a
+    # few description-only patterns for moments ESPN doesn't always label
+    # with a dedicated type ("hits the post", "VAR" overturns).
     Sport.SOCCER: (
-        "goal",
+        # Score-changing
+        "goal",        # ESPN type.text == "Goal" (also matches "Own Goal")
+        # Discipline (often score-impacting via 10 vs 11 men)
         "red card",
         "yellow card",
+        "second yellow",
+        # Set-piece reset-of-state
         "penalty",
+        # Tempo/structure shifts late in matches
         "substitution",
+        # Big-but-no-score moments worth recording
         "var",
-        "injury",
-        "stoppage",
-        "own goal",
+        "hits the post",
+        "hits the bar",
     ),
     Sport.UFC: (
         "knockdown",
@@ -112,6 +121,37 @@ SPORT_EVENT_MARKERS: dict[str, tuple[str, ...]] = {
 }
 
 SCORING_RUN_PATTERN = re.compile(r"\b\d{1,2}-\d{1,2}\s+run\b")
+
+
+def _plays_from_summary(data: dict[str, Any], sport: str) -> list[dict[str, Any]]:
+    """Single source of truth for "where does the play timeline live in this
+    summary response?" — varies by sport.
+
+    US sports (NHL/NBA/MLB/NFL/UFC) expose `plays` directly. Soccer has no
+    `plays` key; the equivalent timeline is `commentary`, where each entry
+    wraps the underlying `play` plus a richer top-level `text` (the full
+    commentary line). For soccer, flatten commentary so each entry adopts
+    the commentary text as its description but otherwise looks like a play.
+    """
+    if sport == Sport.SOCCER:
+        commentary = data.get("commentary") or []
+        plays: list[dict[str, Any]] = []
+        for entry in commentary:
+            play = entry.get("play") or {}
+            if not play:
+                continue
+            merged = dict(play)
+            # Prefer the commentary's full text — the embedded play.text is
+            # often a one-liner, while commentary.text is a full sentence.
+            if entry.get("text"):
+                merged["text"] = entry["text"]
+            plays.append(merged)
+        return plays
+
+    plays_data = data.get("plays", [])
+    if isinstance(plays_data, dict):
+        plays_data = plays_data.get("allPlays", []) or plays_data.get("items", [])
+    return plays_data if isinstance(plays_data, list) else []
 
 
 def _event_context(data: dict[str, Any]) -> dict[str, Any]:
@@ -208,6 +248,16 @@ def _is_significant_event(event_type: str, description: str, sport: str) -> bool
         return True
 
     sport_markers = SPORT_EVENT_MARKERS.get(sport, ())
+    if sport == Sport.SOCCER:
+        # Soccer commentary text is too rich for substring matching against
+        # the description — "saved in the centre of the goal" would falsely
+        # match "goal". Match against ESPN's canonical type.text only, which
+        # is the authoritative event label ("Goal", "Yellow Card", etc.).
+        # Description-only patterns (e.g. "hits the post") still apply.
+        type_match = any(marker in et_lower for marker in sport_markers)
+        desc_only_markers = ("hits the post", "hits the bar")
+        desc_match = any(marker in desc_lower for marker in desc_only_markers)
+        return type_match or desc_match
     return any(marker in search_text for marker in sport_markers)
 
 
@@ -271,6 +321,30 @@ def _normalize_event_type(event_type: str, description: str, sport: str) -> str:
             return "Injury"
         if "review" in raw or "challenge" in raw:
             return "Review"
+
+    if sport == Sport.SOCCER:
+        # ESPN provides canonical type.text labels for soccer (e.g. "Goal",
+        # "Yellow Card", "Substitution", "Foul"). Trust those when present
+        # — the description text is too noisy to substring-match against
+        # (e.g. "Attempt saved... goalkeeper" would otherwise match "Goal").
+        canonical = event_type.strip()
+        if canonical:
+            return canonical
+        # Fallback: description-only inference for entries with no type.text.
+        if "own goal" in raw:
+            return "Own Goal"
+        if "goal" in raw and "no goal" not in raw:
+            return "Goal"
+        if "red card" in raw or "sent off" in raw or "second yellow" in raw:
+            return "Red Card"
+        if "yellow card" in raw or "booked" in raw:
+            return "Yellow Card"
+        if "penalty" in raw:
+            return "Penalty"
+        if "substitution" in raw or "comes on" in raw:
+            return "Substitution"
+        if "var" in raw:
+            return "VAR"
 
     if sport == Sport.SOCCER:
         if "red card" in raw:
@@ -337,10 +411,7 @@ class EspnEventsPoller:
             logger.exception("espn_events_error", espn_id=espn_id, sport=sport)
             return []
 
-        plays_data = data.get("plays", [])
-        if isinstance(plays_data, dict):
-            plays_data = plays_data.get("allPlays", []) or plays_data.get("items", [])
-
+        plays_data = _plays_from_summary(data, sport)
         all_events = _extract_events(plays_data, sport, _event_context(data))
         seen = self._seen_plays.get(espn_id, set())
         new_events = []

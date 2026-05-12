@@ -241,10 +241,21 @@ async def _trader_loop(
     session_factory: async_sessionmaker,
     hb: LoopHeartbeat,
 ) -> None:
+    # Tick this often even when the queue is idle so the watchdog can tell
+    # the difference between "no trade opportunities lately" and "the trader
+    # is wedged." Trader is a consumer, so without an idle timeout it would
+    # block forever on get() and never re-tick.
+    idle_tick_interval_s = settings.events_poll_interval_s
     while True:
         hb.tick()
         try:
-            opportunity = await trade_queue.get()
+            try:
+                opportunity = await asyncio.wait_for(
+                    trade_queue.get(), timeout=idle_tick_interval_s
+                )
+            except TimeoutError:
+                hb.success()
+                continue
             # Defense in depth: even if a passive sport's event reaches us,
             # never open a paper trade for a non-active sport.
             opp_sport = opportunity.get("sport")

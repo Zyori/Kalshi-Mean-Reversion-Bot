@@ -228,7 +228,7 @@ async def upsert_game_from_scoreboard(db: AsyncSession, payload: dict) -> Game:
             away_team=payload.get("away_team", ""),
             start_time=start_time,
             espn_id=espn_id,
-            status=payload.get("status", "scheduled"),
+            status=payload.get("status", "STATUS_SCHEDULED"),
             latest_home_score=payload.get("home_score"),
             latest_away_score=payload.get("away_score"),
         )
@@ -270,12 +270,16 @@ async def record_opening_line(db: AsyncSession, payload: dict) -> Game:
     )
 
     if game is None:
+        # Align the placeholder status to ESPN's emission ("STATUS_SCHEDULED")
+        # so games created from the odds path use the same canonical string
+        # as games created from the scoreboard path — analytics queries
+        # filtering by status see one value, not two.
         game = Game(
             sport=payload.get("sport", ""),
             home_team=payload.get("home_team", ""),
             away_team=payload.get("away_team", ""),
             start_time=start_time,
-            status="scheduled",
+            status="STATUS_SCHEDULED",
             opening_line_home_prob=payload.get("home_prob"),
             opening_line_source=payload.get("source"),
             opening_spread_home=payload.get("home_spread"),
