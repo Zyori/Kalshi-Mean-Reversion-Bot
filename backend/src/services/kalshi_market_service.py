@@ -200,6 +200,15 @@ async def attach_real_market_context(
     if quote is None:
         return None
 
+    # If Odds API didn't give us an opening line for this game, use the
+    # Kalshi yes-side price as our baseline_prob. Kalshi is the venue we
+    # trade on, so its prior is a natural truth source when sportsbooks
+    # are silent. Sticky: never overwrite a real sportsbook baseline.
+    if game.opening_line_home_prob is None and quote["yes_ask"] is not None:
+        game.opening_line_home_prob = quote["yes_ask"] / 100.0
+        game.opening_line_source = "kalshi_fallback"
+        await db.flush()
+
     event["market_id"] = market.id
     event["market_type"] = market.market_type
     event["market_category"] = "moneyline"
@@ -213,7 +222,12 @@ async def attach_real_market_context(
     event["kalshi_yes_ask_depth"] = quote["yes_ask_depth"]
     event["kalshi_no_ask_depth"] = quote["no_ask_depth"]
     event["ask_depth"] = quote["yes_ask_depth"]
-    event["fair_prob_yes"] = game.opening_line_home_prob or 0.5
+    # Surface the baseline so the detector's edges see something better
+    # than the 0.5 fallback. Set both keys — `fair_prob_yes` is what the
+    # simulator reads, `baseline_prob` is what the detector / edges read.
+    baseline = game.opening_line_home_prob or 0.5
+    event["fair_prob_yes"] = baseline
+    event["baseline_prob"] = baseline
     return event
 
 
