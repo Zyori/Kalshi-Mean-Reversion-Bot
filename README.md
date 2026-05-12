@@ -39,7 +39,13 @@ This means the project is ready to start building a historical dataset, but not 
 
 ## Sports Covered
 
-NHL, NBA, MLB, NFL, Soccer (EPL), UFC are recognized by the collectors and classifiers. NHL is still the best first target because the event data is richer and cleaner.
+NHL, NBA, MLB, NFL, Soccer (EPL), UFC are recognized by the collectors and classifiers. Per-sport engagement is controlled by a single source of truth — the `sport_configs` table — with three modes:
+
+- **active** — full ingestion, paper trades placed, strategy + findings tracked.
+- **passive** — schedule + opening lines only; no live event polling, no paper trades.
+- **off** — not polled at all.
+
+The bot currently runs **soccer = active** (FIFA World Cup runway, June 11 – July 19, 2026) with everything else **passive**. Flipping a sport between modes is a database row change — no code changes required.
 
 ## Tech Stack
 

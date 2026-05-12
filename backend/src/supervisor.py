@@ -31,6 +31,7 @@ from src.services.paper_runtime import (
     resolve_game_trades,
     restore_portfolio_state,
 )
+from src.services.sport_config import SportConfigRegistry
 from src.services.trade_policy_service import evaluate_trade_gate
 from src.strategy.detector import EventDetector
 
@@ -47,6 +48,7 @@ class ComponentRegistry:
     detector: EventDetector | None = None
     simulator: PaperTradeSimulator | None = None
     accumulators: Accumulators = field(default_factory=Accumulators)
+    sport_config: SportConfigRegistry = field(default_factory=SportConfigRegistry)
 
     def source_statuses(self) -> dict[str, str]:
         return {
@@ -76,7 +78,14 @@ async def _scoreboard_loop(
                         espn_id = update.get("espn_id")
                         sport = update.get("sport")
                         status = update.get("status", "")
-                        if espn_id and sport and is_live_status(status):
+                        # Only active sports get live event-by-event polling
+                        # and paper trades. Passive sports stop at scheduling.
+                        if (
+                            espn_id
+                            and sport
+                            and is_live_status(status)
+                            and registry.sport_config.is_active(sport)
+                        ):
                             events_poller.watch_game(espn_id, sport)
                         elif espn_id and is_final_status(status):
                             events_poller.unwatch_game(espn_id)
@@ -178,6 +187,12 @@ async def _trader_loop(
     while True:
         try:
             opportunity = await trade_queue.get()
+            # Defense in depth: even if a passive sport's event reaches us,
+            # never open a paper trade for a non-active sport.
+            opp_sport = opportunity.get("sport")
+            if opp_sport and not registry.sport_config.is_active(opp_sport):
+                logger.debug("paper_trade_skipped_inactive_sport", sport=opp_sport)
+                continue
             async with session_factory() as db:
                 trade = simulator.evaluate_opportunity(opportunity)
                 if trade:
@@ -245,9 +260,13 @@ async def run_supervisor(session_factory: async_sessionmaker) -> None:
     espn_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=QUEUE_SIZE)
     trade_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=QUEUE_SIZE)
 
-    scoreboard = EspnScoreboardPoller(espn_queue)
+    async with session_factory() as db:
+        sport_config = await SportConfigRegistry.load(db)
+
+    polled = [s.value for s in sport_config.polled_sports()]
+    scoreboard = EspnScoreboardPoller(espn_queue, sports=polled)
     events_poller = EspnEventsPoller(espn_queue)
-    odds = OddsApiPoller(espn_queue)
+    odds = OddsApiPoller(espn_queue, sports=polled)
     kalshi_rest = KalshiRestClient()
     detector = EventDetector(espn_queue, trade_queue)
     portfolio = Portfolio()
@@ -262,8 +281,13 @@ async def run_supervisor(session_factory: async_sessionmaker) -> None:
     registry.detector = detector
     registry.simulator = simulator
     registry.accumulators = accumulators
+    registry.sport_config = sport_config
 
-    logger.info("supervisor_starting")
+    logger.info(
+        "supervisor_starting",
+        active_sports=[s.value for s in sport_config.active_sports()],
+        polled_sports=polled,
+    )
 
     try:
         async with asyncio.TaskGroup() as tg:

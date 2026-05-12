@@ -31,6 +31,23 @@ class Sport(StrEnum):
     UFC = "ufc"
 
 
+class SportMode(StrEnum):
+    """How aggressively the bot engages with a sport.
+
+    - ACTIVE: full ingestion, paper trades placed, strategy + findings tracked.
+    - PASSIVE: schedule + opening lines only (data collection for future
+      research); no live event polling, no paper trades, no Kalshi snapshots.
+    - OFF: not polled at all.
+
+    Per-sport mode is the single source of truth that drives ingestion cadence,
+    trader gates, and UI visibility. See src/services/sport_config.py.
+    """
+
+    ACTIVE = "active"
+    PASSIVE = "passive"
+    OFF = "off"
+
+
 class EventClassification(StrEnum):
     REVERSION_CANDIDATE = "reversion_candidate"
     STRUCTURAL_SHIFT = "structural_shift"
