@@ -87,6 +87,12 @@ async def ensure_real_kalshi_market(
 ) -> Market | None:
     existing = await _existing_real_market(db, game.id)
     if existing is not None:
+        # Deliberately *don't* seed a baseline here. If the baseline is
+        # still NULL when we revisit an existing market, the match was
+        # already in progress when we discovered it — capturing "now"
+        # as the pre-event baseline would be backwards. Better: skip
+        # this game and let it be tracked passively. Pre-event Kalshi
+        # seeding only happens at first discovery (see below).
         return existing
 
     failed_at = _failed_match_cache.get(game.id)
@@ -122,10 +128,41 @@ async def ensure_real_kalshi_market(
             ticker=market.kalshi_ticker,
             event_ticker=candidate.get("event_ticker"),
         )
+        # If the game has no sportsbook baseline yet, seed it from the
+        # first Kalshi snapshot. This must happen at market-discovery
+        # time (not on every snapshot) so the baseline represents
+        # market state *before* any in-play event we'd then trade on.
+        await _seed_baseline_from_kalshi_if_missing(db, rest, game, market)
         return market
 
     _failed_match_cache[game.id] = time.time()
     return None
+
+
+async def _seed_baseline_from_kalshi_if_missing(
+    db: AsyncSession,
+    rest: KalshiRestClient,
+    game: Game,
+    market: Market,
+) -> None:
+    """One-shot Kalshi baseline seeding for games with no sportsbook line.
+
+    Called from ensure_real_kalshi_market the moment a market is first
+    matched. Captures one snapshot and uses its yes-ask as the baseline.
+    Sticky: never overwrites an existing baseline (sportsbook or Kalshi)."""
+    if game.opening_line_home_prob is not None:
+        return
+    quote = await capture_market_snapshot(db, rest, market)
+    if quote is None or quote.get("yes_ask") is None:
+        return
+    game.opening_line_home_prob = quote["yes_ask"] / 100.0
+    game.opening_line_source = "kalshi_fallback"
+    await db.flush()
+    logger.info(
+        "baseline_seeded_from_kalshi",
+        game_id=game.id,
+        baseline=game.opening_line_home_prob,
+    )
 
 
 def _best_bid(levels: list[list[str]]) -> int | None:
@@ -150,6 +187,10 @@ async def capture_market_snapshot(
 
     Single source of truth for "record a Kalshi price point" — used both by the
     event-driven context attach path and the periodic snapshot loop.
+
+    Side effect: if the linked game has no opening_line_home_prob yet (Odds
+    API was silent for it), we backfill the baseline from this snapshot's
+    yes-ask. Kalshi as the fallback prior, sticky once set.
     """
     orderbook = await rest.get_orderbook(market.kalshi_ticker, depth=5)
     orderbook_fp = orderbook.get("orderbook_fp") or {}
@@ -199,15 +240,9 @@ async def attach_real_market_context(
     quote = await capture_market_snapshot(db, rest, market)
     if quote is None:
         return None
-
-    # If Odds API didn't give us an opening line for this game, use the
-    # Kalshi yes-side price as our baseline_prob. Kalshi is the venue we
-    # trade on, so its prior is a natural truth source when sportsbooks
-    # are silent. Sticky: never overwrite a real sportsbook baseline.
-    if game.opening_line_home_prob is None and quote["yes_ask"] is not None:
-        game.opening_line_home_prob = quote["yes_ask"] / 100.0
-        game.opening_line_source = "kalshi_fallback"
-        await db.flush()
+    # capture_market_snapshot may have backfilled game.opening_line_home_prob
+    # from Kalshi; reflect that in the event payload.
+    await db.refresh(game, attribute_names=["opening_line_home_prob", "opening_line_source"])
 
     event["market_id"] = market.id
     event["market_type"] = market.market_type
