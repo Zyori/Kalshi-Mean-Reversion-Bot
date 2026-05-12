@@ -19,7 +19,7 @@ class Settings(BaseSettings):
 
     odds_api_key: str = ""
 
-    database_url: str = "sqlite+aiosqlite:///./data/bot.db"
+    database_url: str = "postgresql+asyncpg://lutz_bot:CHANGE_ME@127.0.0.1:5432/lutz_bot"
 
     host: str = "127.0.0.1"
     port: int = 8000

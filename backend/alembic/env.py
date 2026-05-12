@@ -19,6 +19,17 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 
+def _render_as_batch_for(url_or_connection) -> bool:
+    """Batch-mode DDL is a SQLite necessity (no real ALTER TABLE); on Postgres
+    it can mask constraint-rename issues. Toggle it only for SQLite."""
+    dialect = (
+        url_or_connection.dialect.name
+        if hasattr(url_or_connection, "dialect")
+        else str(url_or_connection).split("+", 1)[0].split(":", 1)[0]
+    )
+    return dialect == "sqlite"
+
+
 def run_migrations_offline() -> None:
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
@@ -26,7 +37,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
-        render_as_batch=True,
+        render_as_batch=_render_as_batch_for(url),
     )
 
     with context.begin_transaction():
@@ -37,7 +48,7 @@ def do_run_migrations(connection: Connection) -> None:
     context.configure(
         connection=connection,
         target_metadata=target_metadata,
-        render_as_batch=True,
+        render_as_batch=_render_as_batch_for(connection),
     )
 
     with context.begin_transaction():

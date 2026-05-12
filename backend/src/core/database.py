@@ -7,9 +7,9 @@ class Base(DeclarativeBase):
 
 
 def create_engine(database_url: str):
-    connect_args = {}
-    if database_url.startswith("sqlite"):
-        connect_args["check_same_thread"] = False
+    # SQLite is only used by the test suite (in-memory). Postgres is the
+    # production driver and needs no special connect args.
+    connect_args = {"check_same_thread": False} if database_url.startswith("sqlite") else {}
 
     return create_async_engine(
         database_url,

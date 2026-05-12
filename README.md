@@ -43,7 +43,7 @@ NHL, NBA, MLB, NFL, Soccer (EPL), UFC are recognized by the collectors and class
 
 ## Tech Stack
 
-**Backend:** Python 3.12, FastAPI, SQLAlchemy (async), aiosqlite, Alembic, structlog, scipy, pandas
+**Backend:** Python 3.12, FastAPI, SQLAlchemy (async), Postgres + asyncpg (SQLite-in-memory only for tests), Alembic, structlog, scipy, pandas
 
 **Dashboard:** React 19, TypeScript, Vite, Tailwind CSS v4, TanStack Query + Table, Lightweight Charts, Recharts
 
@@ -78,7 +78,7 @@ The dashboard proxies `/api` requests to the backend at `localhost:8000`.
 | `KALSHI_PRIVATE_KEY_PATH` | Yes | Path to RSA private key PEM file |
 | `KALSHI_ENVIRONMENT` | No | `demo` (default) or `prod` |
 | `ODDS_API_KEY` | Yes | The Odds API key (free tier: 500 req/month) |
-| `DATABASE_URL` | No | Defaults to `sqlite+aiosqlite:///./data/bot.db` |
+| `DATABASE_URL` | Yes | Postgres DSN, e.g. `postgresql+asyncpg://lutz_bot:PASSWORD@127.0.0.1:5432/lutz_bot` |
 | `SCOREBOARD_LIVE_POLL_INTERVAL_S` | No | Live-game scoreboard cadence, default `10` |
 | `SCOREBOARD_PREGAME_POLL_INTERVAL_S` | No | Pregame cadence, default `300` |
 | `SCOREBOARD_IDLE_POLL_INTERVAL_S` | No | Idle schedule-sync cadence, default `43200` |
