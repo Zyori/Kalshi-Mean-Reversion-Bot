@@ -95,3 +95,9 @@ class EventClassifier:
             baseline_prob=baseline_prob,
             is_home_favorite=is_home_favorite,
         )
+
+    def get_sport_classifier(self, sport: str):
+        """Expose the underlying per-sport classifier so callers (e.g. the
+        EventDetector) can access richer interfaces like soccer's edge
+        registry — without forcing every sport to implement them."""
+        return self._classifiers.get(sport)

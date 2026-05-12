@@ -176,6 +176,10 @@ class PaperTradeSimulator:
                 fair_prob_yes=fair_prob_yes,
                 market_prob_yes=market_prob_yes,
             ),
+            # Carry the firing edge's tag through to the trade row so we can
+            # group PnL by signal_kind later. Soccer-only today; non-soccer
+            # trades stay None.
+            "signal_kind": event.get("signal_kind"),
         }
         return trade
 

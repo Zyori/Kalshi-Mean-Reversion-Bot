@@ -46,7 +46,10 @@ def test_nfl_early_one_score_deficit_is_candidate() -> None:
     assert result == "reversion_candidate"
 
 
-def test_soccer_single_goal_early_deficit_is_candidate() -> None:
+def test_soccer_only_real_events_can_fire_a_candidate() -> None:
+    # Non-event types (throw-in, foul, etc.) never fire an edge even if the
+    # game state would otherwise be interesting — edges require a genuine
+    # market-moving event (goal, red card, penalty).
     clf = SoccerClassifier()
     result = clf.classify_event(
         event_type="Throw In",
@@ -57,10 +60,12 @@ def test_soccer_single_goal_early_deficit_is_candidate() -> None:
         baseline_prob=0.57,
         is_home_favorite=True,
     )
-    assert result == "reversion_candidate"
+    assert result == "neutral"
 
 
-def test_soccer_red_card_stays_structural_shift() -> None:
+def test_soccer_red_card_is_tradable_via_reversion_candidate() -> None:
+    # Red cards used to return "structural_shift" (log-only); they now fire
+    # the red_card_overreact edge so the trader actually picks them up.
     clf = SoccerClassifier()
     result = clf.classify_event(
         event_type="Red Card",
@@ -71,4 +76,4 @@ def test_soccer_red_card_stays_structural_shift() -> None:
         baseline_prob=0.64,
         is_home_favorite=True,
     )
-    assert result == "structural_shift"
+    assert result == "reversion_candidate"

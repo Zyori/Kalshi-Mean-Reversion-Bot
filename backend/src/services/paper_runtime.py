@@ -381,6 +381,7 @@ async def persist_trade(
         status=trade["status"],
         game_context=json.dumps(trade.get("game_context", {})),
         reasoning=trade.get("reasoning"),
+        signal_kind=trade.get("signal_kind"),
     )
     db.add(record)
     await db.flush()

@@ -36,6 +36,9 @@ class PaperTrade(Base):
     game_context: Mapped[str | None] = mapped_column(Text)
     reasoning: Mapped[str | None] = mapped_column(Text)
     skip_reason: Mapped[str | None] = mapped_column(String(200))
+    # Which named edge fired this trade (soccer only today). Nullable to
+    # keep older rows and non-soccer trades clean.
+    signal_kind: Mapped[str | None] = mapped_column(String(60))
 
     game_event = relationship("GameEvent", back_populates="trades")
     market = relationship("Market", back_populates="trades")

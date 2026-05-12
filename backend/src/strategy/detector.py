@@ -2,8 +2,11 @@ import asyncio
 from typing import Any
 
 from src.core.logging import get_logger
+from src.core.types import Sport
 from src.strategy.classifier import EventClassifier
 from src.strategy.scorer import score_opportunity
+from src.strategy.sports.soccer.classifier import SoccerClassifier
+from src.strategy.sports.soccer.context import EdgeContext
 
 logger = get_logger(__name__)
 
@@ -57,6 +60,28 @@ class EventDetector:
         event["classification"] = classification
         event["baseline_prob"] = baseline
 
+        # For soccer, also record which edge fired (mean_reversion vs.
+        # trend_affirm vs. red_card_overreact vs. penalty_awarded) so the
+        # paper-trade row can be analyzed by signal kind later. Other
+        # sports don't yet have a registry; their trades stay untagged.
+        if sport == Sport.SOCCER:
+            soccer = self.classifier.get_sport_classifier(sport)
+            if isinstance(soccer, SoccerClassifier):
+                signal = soccer.evaluate(
+                    EdgeContext(
+                        event_type=event_type,
+                        description=description,
+                        home_score=home_score,
+                        away_score=away_score,
+                        minute=_parse_soccer_minute(period),
+                        baseline_prob=baseline,
+                        is_home_favorite=is_home_favorite,
+                    )
+                )
+                if signal is not None:
+                    event["signal_kind"] = signal.signal_kind
+                    event["signal_reason"] = signal.reason
+
         if classification == "reversion_candidate" and kalshi_price is not None:
             kalshi_prob = kalshi_price / 100.0
             deviation = abs(baseline - kalshi_prob)
@@ -102,6 +127,13 @@ class EventDetector:
                 if self.output_queue.full():
                     logger.warning("detector_output_queue_full")
                 await self.output_queue.put(result)
+
+
+def _parse_soccer_minute(period: str) -> int:
+    try:
+        return int(period)
+    except (ValueError, TypeError):
+        return 90
 
 
 def _estimate_time_remaining(sport: str, period: str) -> float:
