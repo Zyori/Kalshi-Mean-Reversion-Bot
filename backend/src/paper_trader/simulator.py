@@ -1,5 +1,6 @@
 from typing import Any
 
+from src.config import settings
 from src.core.logging import get_logger
 from src.paper_trader.kelly import ConservativeEstimator, ProbabilityEstimator, kelly_size
 from src.paper_trader.portfolio import Portfolio
@@ -7,6 +8,15 @@ from src.paper_trader.portfolio import Portfolio
 logger = get_logger(__name__)
 
 FLAT_BET_CENTS = 500
+# Fixed flat-bet size used in research mode when Kelly returns 0 (no
+# theoretical edge). Lets us still record a row so analysis has outcomes
+# to look at. Small enough that 50–100 of these don't drain the bankroll.
+RESEARCH_MODE_FLAT_SIZE_CENTS = 100
+
+
+def _research_mode_sports() -> set[str]:
+    raw = settings.paper_trade_research_mode_sports or ""
+    return {s.strip() for s in raw.split(",") if s.strip()}
 
 
 def calculate_slippage(entry_price_cents: int, ask_depth: int | None = None) -> int:
@@ -105,8 +115,13 @@ class PaperTradeSimulator:
         if not self.portfolio.can_open():
             return None
 
+        sport = event.get("sport") or ""
+        in_research_mode = sport in _research_mode_sports()
+
         confidence = event.get("confidence_score", 0.0)
-        if confidence <= 0:
+        # In research mode we still trade even when the scorer gave us
+        # confidence 0 — the dataset is what we want, not strict EV.
+        if not in_research_mode and confidence <= 0:
             return None
 
         yes_market_price = event.get("kalshi_price_at")
@@ -142,7 +157,12 @@ class PaperTradeSimulator:
         )
 
         if size == 0:
-            return None
+            # In research mode we open a small flat bet so the row exists
+            # and PnL can be analyzed later. Outside research mode, a Kelly
+            # of zero means "don't bet" and we honor it.
+            if not in_research_mode:
+                return None
+            size = RESEARCH_MODE_FLAT_SIZE_CENTS
 
         f = kelly_size(
             p=contract_prob,

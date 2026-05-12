@@ -19,24 +19,28 @@ SIGNAL_KIND = "trend_affirm_favorite_scores"
 
 
 def evaluate(ctx: EdgeContext) -> EdgeSignal | None:
+    """Fires when a goal lands early and the favorite is not now behind.
+
+    Research-mode: with no clear favorite (baseline ~ 0.5) we still fire —
+    the trade will be tagged with this edge so analysis can split outcomes
+    by whether a clear favorite existed.
+    """
     if not is_goal(ctx):
-        return None
-    if ctx.baseline_prob < 0.55:
         return None
     if ctx.minute > 60:
         return None
-    favorite_still_behind = favorite_behind(
+    has_clear_favorite = ctx.baseline_prob >= 0.55
+    if has_clear_favorite and favorite_behind(
         home_score=ctx.home_score,
         away_score=ctx.away_score,
         is_home_favorite=ctx.is_home_favorite,
-    )
-    if favorite_still_behind:
+    ):
         return None
     return EdgeSignal(
         signal_kind=SIGNAL_KIND,
         classification="reversion_candidate",
         reason=(
-            f"Favorite (baseline {ctx.baseline_prob:.2f}) up or level "
-            f"{ctx.home_score}-{ctx.away_score} after early goal at {ctx.minute}'"
+            f"Goal at {ctx.minute}', score {ctx.home_score}-{ctx.away_score} "
+            f"(baseline {ctx.baseline_prob:.2f})"
         ),
     )

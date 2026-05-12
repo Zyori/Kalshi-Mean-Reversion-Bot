@@ -52,6 +52,12 @@ class Settings(BaseSettings):
     paper_trade_min_deviation_total: float = 0.045
     paper_trade_max_open_per_market: int = 3
     paper_trade_reentry_min_price_move_cents: int = 5
+    # Research mode: when enabled for a sport, the trade gate skips the
+    # confidence + deviation thresholds and opens a trade on every event
+    # the strategy classifies as a candidate. Used to bootstrap a paper-
+    # trade dataset before we know which thresholds are right. Tighten
+    # back up by removing the sport from this list once we have data.
+    paper_trade_research_mode_sports: str = "soccer"
 
     @field_validator("kalshi_private_key_path")
     @classmethod

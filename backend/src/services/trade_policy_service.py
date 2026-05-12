@@ -22,6 +22,11 @@ def _deviation_threshold(market_category: str | None) -> float:
     )
 
 
+def _research_mode_sports() -> set[str]:
+    raw = settings.paper_trade_research_mode_sports or ""
+    return {s.strip() for s in raw.split(",") if s.strip()}
+
+
 async def evaluate_trade_gate(
     db: AsyncSession,
     event: dict,
@@ -35,13 +40,20 @@ async def evaluate_trade_gate(
         return "missing_market"
 
     market_category = trade.get("market_category") or event.get("market_category")
-    confidence = float(event.get("confidence_score") or 0.0)
-    if confidence < _confidence_threshold(market_category):
-        return "confidence_below_threshold"
+    sport = trade.get("sport") or event.get("sport") or ""
+    in_research_mode = sport in _research_mode_sports()
 
-    deviation = float(event.get("deviation") or 0.0)
-    if deviation < _deviation_threshold(market_category):
-        return "deviation_below_threshold"
+    # In research mode we want every classified candidate to become a
+    # paper trade, so we can build the dataset. The dedup + position-
+    # limit gates below still apply — we just skip the quality filters.
+    if not in_research_mode:
+        confidence = float(event.get("confidence_score") or 0.0)
+        if confidence < _confidence_threshold(market_category):
+            return "confidence_below_threshold"
+
+        deviation = float(event.get("deviation") or 0.0)
+        if deviation < _deviation_threshold(market_category):
+            return "deviation_below_threshold"
 
     game_event_id = event.get("game_event_id")
     if game_event_id is not None:

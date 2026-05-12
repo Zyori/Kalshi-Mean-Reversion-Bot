@@ -34,7 +34,11 @@ def test_silent_when_favorite_is_not_behind():
     assert s is None
 
 
-def test_silent_when_no_clear_favorite():
+def test_fires_with_unknown_baseline_for_research_volume():
+    # Research-mode: when there's no clear favorite (baseline ~ 0.5,
+    # typical when Odds API has no line and Kalshi-fallback missed),
+    # the edge still fires so we collect outcomes. Analysis later can
+    # filter by whether a clear baseline existed.
     s = mean_reversion_favorite_trails.evaluate(
         ctx(
             event_type="Goal",
@@ -45,7 +49,8 @@ def test_silent_when_no_clear_favorite():
             is_home_favorite=True,
         ),
     )
-    assert s is None
+    assert s is not None
+    assert s.signal_kind == "mean_reversion_favorite_trails"
 
 
 def test_silent_when_event_is_not_a_goal():

@@ -50,7 +50,10 @@ def test_silent_late_in_first_half_onwards():
     assert s is None
 
 
-def test_silent_when_no_clear_favorite():
+def test_fires_with_unknown_baseline_for_research_volume():
+    # Research-mode: when there's no clear favorite, fire anyway so we
+    # collect outcomes. Tagged with the edge name so we can analyze
+    # later whether unbaselined trades have any edge of their own.
     s = trend_affirm_favorite_scores.evaluate(
         ctx(
             event_type="Goal",
@@ -61,4 +64,4 @@ def test_silent_when_no_clear_favorite():
             is_home_favorite=True,
         ),
     )
-    assert s is None
+    assert s is not None
