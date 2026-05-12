@@ -181,3 +181,56 @@ async def test_analysis_decision_audits_are_available(
         summary_rows[("total", "skipped")]
         == baseline_summary_rows.get(("total", "skipped"), 0) + 1
     )
+
+
+async def test_findings_create_and_filter_by_sport(
+    client: AsyncClient, _authed: str
+):
+    await _login(client, _authed)
+
+    # Create a soccer finding
+    resp = await client.post(
+        "/api/insights",
+        json={
+            "sport": "soccer",
+            "title": "Late-game goals overshoot",
+            "body": "EPL moneyline reverts within 4 minutes ~70% of the time.",
+            "recommendation": "Hold for 4-min window after goals; tighter stop.",
+        },
+    )
+    assert resp.status_code == 200
+    created = resp.json()
+    assert created["sport"] == "soccer"
+    assert created["type"] == "manual_finding"
+    assert created["status"] == "active"
+    assert created["title"] == "Late-game goals overshoot"
+
+    # And a UFC finding so we can prove the filter excludes the wrong sport
+    other = await client.post(
+        "/api/insights",
+        json={"sport": "ufc", "title": "Round 1 KOs", "body": "Not enough data yet."},
+    )
+    assert other.status_code == 200
+
+    # Sport filter returns only the matching one
+    soccer = await client.get("/api/insights?sport=soccer")
+    assert soccer.status_code == 200
+    sports = {row["sport"] for row in soccer.json()}
+    assert sports == {"soccer"}
+
+    # Listing without filter sees both
+    all_resp = await client.get("/api/insights")
+    assert all_resp.status_code == 200
+    titles = {row["title"] for row in all_resp.json()}
+    assert {"Late-game goals overshoot", "Round 1 KOs"}.issubset(titles)
+
+
+async def test_finding_create_rejects_empty_title(
+    client: AsyncClient, _authed: str
+):
+    await _login(client, _authed)
+    resp = await client.post(
+        "/api/insights",
+        json={"sport": "soccer", "title": "", "body": "something"},
+    )
+    assert resp.status_code == 422

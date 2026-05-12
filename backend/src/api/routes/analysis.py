@@ -2,6 +2,7 @@ import json
 from collections import defaultdict
 
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -244,11 +245,45 @@ async def kelly_comparison(db: AsyncSession = Depends(get_db)):
 @router.get("/insights")
 async def list_insights(
     status: str | None = None,
+    sport: str | None = None,
     limit: int = 50,
     db: AsyncSession = Depends(get_db),
 ):
     stmt = select(Insight).order_by(Insight.created_at.desc()).limit(limit)
     if status:
         stmt = stmt.where(Insight.status == status)
+    if sport:
+        stmt = stmt.where(Insight.sport == sport)
     result = await db.execute(stmt)
     return result.scalars().all()
+
+
+class FindingCreate(BaseModel):
+    """Operator-curated finding written from the sport-overview page.
+    Persists into the same `insights` table as auto-generated insights
+    so analytics queries see one timeline. Distinguished by type:
+    manual_finding vs. edge_validated/edge_degraded/etc."""
+
+    sport: str | None = None
+    title: str = Field(min_length=1, max_length=200)
+    body: str = Field(min_length=1)
+    recommendation: str | None = None
+
+
+@router.post("/insights")
+async def create_finding(
+    payload: FindingCreate,
+    db: AsyncSession = Depends(get_db),
+):
+    insight = Insight(
+        sport=payload.sport,
+        type="manual_finding",
+        title=payload.title,
+        body=payload.body,
+        recommendation=payload.recommendation,
+        status="active",
+    )
+    db.add(insight)
+    await db.commit()
+    await db.refresh(insight)
+    return insight

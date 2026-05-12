@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useParams, Link } from "react-router";
 import { Card } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
@@ -6,6 +6,7 @@ import { useGames } from "../hooks/useMarkets";
 import { useRecentEvents } from "../hooks/useMarkets";
 import { useTrades } from "../hooks/useTrades";
 import { useSports } from "../hooks/useSports";
+import { useFindings, useCreateFinding } from "../hooks/useFindings";
 import {
   isFinalStatus,
   isLiveStatus,
@@ -18,7 +19,7 @@ import {
   sportModeBadgeClass,
   sportModeLabel,
 } from "../lib/sports";
-import type { Game, GameEvent, Trade } from "../lib/api";
+import type { Game, GameEvent, Insight, Trade } from "../lib/api";
 
 /**
  * Sport-Overview page. The primary surface for a single sport: mode + intent,
@@ -94,6 +95,10 @@ export function SportPage() {
           <h3 className="mb-3 text-sm font-semibold text-text">Open paper positions</h3>
           <TradeList trades={openTrades ?? []} />
         </Card>
+      </section>
+
+      <section>
+        <FindingsSection sport={sport} />
       </section>
 
       {partitioned.recentFinal.length > 0 && (
@@ -228,6 +233,171 @@ function EventList({ events }: { events: GameEvent[] }) {
           <span className="shrink-0 text-xs text-text-dim">
             {formatRelative(e.detected_at)}
           </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function FindingsSection({ sport }: { sport: string }) {
+  const { data: findings, isLoading } = useFindings(sport);
+  const create = useCreateFinding();
+  const [adding, setAdding] = useState(false);
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [recommendation, setRecommendation] = useState("");
+
+  function reset() {
+    setTitle("");
+    setBody("");
+    setRecommendation("");
+    setAdding(false);
+  }
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!title.trim() || !body.trim()) return;
+    create.mutate(
+      {
+        sport,
+        title: title.trim(),
+        body: body.trim(),
+        recommendation: recommendation.trim() || null,
+      },
+      { onSuccess: reset },
+    );
+  }
+
+  return (
+    <Card>
+      <div className="mb-3 flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-text">Findings</h3>
+          <p className="mt-0.5 text-xs text-text-dim">
+            What we've learned about{" "}
+            <span className="text-text">{sportDisplayName(sport)}</span> as the
+            bot watches and trades. Auto-generated insights and operator notes
+            share one timeline.
+          </p>
+        </div>
+        {!adding && (
+          <button
+            type="button"
+            onClick={() => setAdding(true)}
+            className="rounded-md border border-border bg-surface-2 px-3 py-1.5 text-xs font-medium text-text-dim transition-colors hover:border-accent/40 hover:text-text"
+          >
+            + Add finding
+          </button>
+        )}
+      </div>
+
+      {adding && (
+        <form
+          onSubmit={submit}
+          className="mb-4 space-y-2 rounded-md border border-accent/30 bg-accent/5 p-3"
+        >
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Headline (e.g. 'Late-game goals overshoot')"
+            maxLength={200}
+            className="w-full rounded-md border border-border bg-surface-0 px-3 py-2 text-sm text-text placeholder:text-text-dim focus:border-accent focus:outline-none"
+            required
+          />
+          <textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            placeholder="What did you observe? Be specific — sample size, time window, market category."
+            rows={3}
+            className="w-full rounded-md border border-border bg-surface-0 px-3 py-2 text-sm text-text placeholder:text-text-dim focus:border-accent focus:outline-none"
+            required
+          />
+          <input
+            type="text"
+            value={recommendation}
+            onChange={(e) => setRecommendation(e.target.value)}
+            placeholder="Recommendation (optional) — what should the strategy do differently?"
+            maxLength={500}
+            className="w-full rounded-md border border-border bg-surface-0 px-3 py-2 text-sm text-text placeholder:text-text-dim focus:border-accent focus:outline-none"
+          />
+          <div className="flex justify-end gap-2 pt-1">
+            <button
+              type="button"
+              onClick={reset}
+              className="rounded-md px-3 py-1.5 text-xs text-text-dim hover:bg-surface-2 hover:text-text"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={create.isPending || !title.trim() || !body.trim()}
+              className="rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-text disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {create.isPending ? "Saving…" : "Save finding"}
+            </button>
+          </div>
+          {create.isError && (
+            <p className="text-xs text-loss">
+              Couldn't save — try again.
+            </p>
+          )}
+        </form>
+      )}
+
+      <FindingList findings={findings ?? []} loading={isLoading} />
+    </Card>
+  );
+}
+
+function FindingList({
+  findings,
+  loading,
+}: {
+  findings: Insight[];
+  loading: boolean;
+}) {
+  if (loading) return <p className="text-sm text-text-dim">Loading…</p>;
+  if (findings.length === 0)
+    return (
+      <p className="text-sm text-text-dim">
+        No findings yet. Add the first one above — even a half-formed hunch is
+        worth capturing.
+      </p>
+    );
+  return (
+    <ul className="space-y-3">
+      {findings.map((f) => (
+        <li
+          key={f.id}
+          className="rounded-md border border-border/60 bg-surface-2/40 px-3 py-3"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-text">{f.title}</span>
+                {f.type === "manual_finding" ? (
+                  <Badge className="bg-surface-3 text-text-dim">note</Badge>
+                ) : (
+                  <Badge className="bg-accent/15 text-accent-light">
+                    {f.type.replace(/_/g, " ")}
+                  </Badge>
+                )}
+              </div>
+              <p className="mt-1 whitespace-pre-line text-xs text-text-dim">
+                {f.body}
+              </p>
+              {f.recommendation && (
+                <p className="mt-2 text-xs text-text">
+                  <span className="text-text-dim">Recommendation: </span>
+                  {f.recommendation}
+                </p>
+              )}
+            </div>
+            <span className="shrink-0 text-xs text-text-dim">
+              {formatRelative(f.created_at)}
+            </span>
+          </div>
         </li>
       ))}
     </ul>

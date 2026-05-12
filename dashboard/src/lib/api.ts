@@ -206,6 +206,7 @@ export interface KellyPoint {
 
 export interface Insight {
   id: number;
+  sport: string | null;
   type: string;
   title: string;
   body: string;
@@ -214,6 +215,13 @@ export interface Insight {
   recommendation: string | null;
   status: string;
   created_at: string;
+}
+
+export interface FindingCreate {
+  sport?: string | null;
+  title: string;
+  body: string;
+  recommendation?: string | null;
 }
 
 export interface PublicStatus {
@@ -384,10 +392,16 @@ export const api = {
   equityCurve: () => get<EquityPoint[]>("/analysis/equity-curve"),
   kellyComparison: () => get<KellyPoint[]>("/analysis/kelly-comparison"),
   strategy: () => get<StrategyCatalog>("/strategy"),
-  insights: (status?: string) => {
-    const qs = status ? `?status=${status}` : "";
-    return get<Insight[]>(`/insights${qs}`);
+  insights: (params?: { status?: string; sport?: string; limit?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.status) qs.set("status", params.status);
+    if (params?.sport) qs.set("sport", params.sport);
+    if (params?.limit != null) qs.set("limit", String(params.limit));
+    const q = qs.toString();
+    return get<Insight[]>(`/insights${q ? `?${q}` : ""}`);
   },
+  createFinding: (payload: FindingCreate) =>
+    post<Insight>("/insights", payload),
   updateConfig: (key: string, value: string, reason?: string) =>
     patch(`/config/${key}`, { value, reason }),
 };
