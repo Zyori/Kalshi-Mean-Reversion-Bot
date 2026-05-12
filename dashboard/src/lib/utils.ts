@@ -81,14 +81,30 @@ export function platformTimeLabel(): string {
   return PLATFORM_TIME_LABEL;
 }
 
+// Mirror of src/ingestion/espn_scoreboard.py LIVE_STATUS_MARKERS — keep the
+// two lists in lock-step so frontend bucketing matches backend gating.
+const LIVE_STATUS_MARKERS = [
+  "in_progress",
+  "first_half",
+  "second_half",
+  "halftime",
+  "end_period",
+  "end_quarter",
+  "overtime",
+  "shootout",
+  "intermission",
+];
+const FINAL_STATUS_MARKERS = ["final", "post", "full_time"];
+
 export function isLiveStatus(status: string | null | undefined): boolean {
   const normalized = String(status ?? "").toLowerCase();
-  return normalized.includes("in_progress") || normalized.includes("end_period") || normalized === "live";
+  if (normalized === "live") return true;
+  return LIVE_STATUS_MARKERS.some((m) => normalized.includes(m));
 }
 
 export function isFinalStatus(status: string | null | undefined): boolean {
   const normalized = String(status ?? "").toLowerCase();
-  return normalized.includes("final") || normalized.includes("full_time") || normalized === "post";
+  return FINAL_STATUS_MARKERS.some((m) => normalized.includes(m));
 }
 
 export function sortGamesByPriority<T extends { start_time: string; status: string }>(
