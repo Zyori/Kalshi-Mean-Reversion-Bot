@@ -221,6 +221,38 @@ export interface PublicStatus {
   uptime_seconds: number;
   sources_up: number;
   sources_total: number;
+  loops_healthy?: number;
+  loops_total?: number;
+}
+
+export interface LoopHeartbeat {
+  name: string;
+  expected_interval_s: number;
+  last_tick_at: number | null;
+  last_success_at: number | null;
+  last_error_at: number | null;
+  last_error_message: string | null;
+  tick_count: number;
+  success_count: number;
+  error_count: number;
+  staleness_seconds: number | null;
+  stale: boolean;
+}
+
+export interface HealthDetail extends HealthStatus {
+  loops?: LoopHeartbeat[];
+}
+
+export type SportMode = "active" | "passive" | "off";
+
+export interface SportEntry {
+  sport: string;
+  mode: SportMode;
+  notes?: string | null;
+}
+
+export interface SportsResponse {
+  sports: SportEntry[];
 }
 
 export interface StrategyPolicyMarket {
@@ -283,7 +315,8 @@ export const api = {
   me: () => get<{ authed: true }>("/auth/me"),
   publicStatus: () => get<PublicStatus>("/public/status"),
   publicHeartbeat: () => get<{ ok: true; timestamp: number }>("/public/heartbeat"),
-  health: () => get<HealthStatus>("/health"),
+  health: () => get<HealthDetail>("/health"),
+  sports: () => get<SportsResponse>("/sports"),
   games: (params?: {
     sport?: string;
     status?: string;

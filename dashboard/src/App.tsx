@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { DashboardLayout } from "./layouts/DashboardLayout";
+import { OverviewPage } from "./pages/OverviewPage";
+import { SportPage } from "./pages/SportPage";
 import { MarketsPage } from "./pages/MarketsPage";
 import { TradesPage } from "./pages/TradesPage";
 import { AnalyticsPage } from "./pages/AnalyticsPage";
@@ -36,7 +38,9 @@ function ProtectedRoutes() {
   return (
     <Routes>
       <Route element={<DashboardLayout />}>
-        <Route index element={<MarketsPage />} />
+        <Route index element={<OverviewPage />} />
+        <Route path="sports/:sport" element={<SportPage />} />
+        <Route path="markets" element={<MarketsPage />} />
         <Route path="data" element={<DataPage />} />
         <Route path="trades" element={<TradesPage />} />
         <Route path="analytics" element={<AnalyticsPage />} />
