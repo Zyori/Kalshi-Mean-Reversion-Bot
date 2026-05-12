@@ -18,6 +18,11 @@ build/
 # Database
 *.db
 *.sqlite3
+*.db.gz
+*.sqlite3.gz
+
+# Local archives (large binary snapshots; tracked only by README pointer)
+docs/archive/*.gz
 
 # Node / Dashboard
 node_modules/
