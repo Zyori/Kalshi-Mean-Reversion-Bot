@@ -11,13 +11,63 @@ from src.core.types import Sport
 
 logger = get_logger(__name__)
 
-SCOREBOARD_URLS: dict[str, str] = {
-    Sport.NHL: "https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/scoreboard",
-    Sport.NBA: "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard",
-    Sport.MLB: "https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard",
-    Sport.NFL: "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard",
-    Sport.SOCCER: "https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/scoreboard",
-    Sport.UFC: "https://site.api.espn.com/apis/site/v2/sports/mma/ufc/scoreboard",
+_ESPN = "https://site.api.espn.com/apis/site/v2/sports"
+
+# Per-sport ESPN scoreboard endpoints. A sport may map to multiple league
+# scoreboards — for soccer we fan out across every major pro league plus
+# the relevant international competitions, since Kalshi has historically
+# listed markets from many of these and our paper-trade funnel benefits
+# from every validated match we can ingest. ESPN dedupes by event_id, so
+# the same game appearing in multiple feeds wouldn't be double-counted.
+SCOREBOARD_URLS: dict[str, tuple[str, ...]] = {
+    Sport.NHL: (f"{_ESPN}/hockey/nhl/scoreboard",),
+    Sport.NBA: (f"{_ESPN}/basketball/nba/scoreboard",),
+    Sport.MLB: (f"{_ESPN}/baseball/mlb/scoreboard",),
+    Sport.NFL: (f"{_ESPN}/football/nfl/scoreboard",),
+    Sport.UFC: (f"{_ESPN}/mma/ufc/scoreboard",),
+    Sport.SOCCER: tuple(
+        f"{_ESPN}/soccer/{league}/scoreboard"
+        for league in (
+            # Top 5 European leagues
+            "eng.1",  # Premier League
+            "esp.1",  # La Liga
+            "ita.1",  # Serie A
+            "ger.1",  # Bundesliga
+            "fra.1",  # Ligue 1
+            # Other major European leagues
+            "por.1",  # Primeira Liga
+            "ned.1",  # Eredivisie
+            "bel.1",  # Belgian Pro League
+            "sco.1",  # Scottish Premiership
+            "tur.1",  # Süper Lig
+            "cze.1",  # Czech First League (Chance Liga)
+            # Americas
+            "usa.1",  # MLS
+            "mex.1",  # Liga MX
+            "bra.1",  # Brasileirão Série A
+            "arg.1",  # Liga Profesional
+            # Asia / Oceania
+            "jpn.1",  # J1 League
+            "aus.1",  # A-League
+            "chn.1",  # Chinese Super League
+            "ksa.1",  # Saudi Pro League
+            # UEFA & CONMEBOL club competitions
+            "uefa.champions",
+            "uefa.europa",
+            "uefa.europa.conf",
+            "conmebol.libertadores",
+            "conmebol.sudamericana",
+            # International (FIFA)
+            "fifa.worldq.uefa",
+            "fifa.worldq.conmebol",
+            "fifa.worldq.concacaf",
+            "fifa.worldq.afc",
+            "fifa.worldq.caf",
+            "fifa.worldq.ofc",
+            "fifa.friendly",
+            "fifa.world",  # World Cup itself when in season
+        )
+    ),
 }
 
 LIVE_STATUS_MARKERS = (
@@ -96,40 +146,57 @@ class EspnScoreboardPoller:
     async def close(self) -> None:
         await self.client.aclose()
 
+    async def _fetch_url_events(
+        self, url: str, sport: str, dates_value: str
+    ) -> dict[str, dict[str, Any]]:
+        """Hit one ESPN scoreboard URL twice (default + dates=today) and
+        return its events keyed by ESPN event id. Errors are logged and
+        return an empty dict so one bad league never blocks the rest."""
+        try:
+            default_resp, today_resp = await asyncio.gather(
+                self.client.get(url),
+                self.client.get(url, params={"dates": dates_value}),
+            )
+        except (httpx.HTTPError, Exception):
+            logger.exception("espn_scoreboard_error", sport=sport, url=url)
+            return {}
+
+        events_by_id: dict[str, dict[str, Any]] = {}
+        for resp, label in ((default_resp, "default"), (today_resp, "today")):
+            try:
+                resp.raise_for_status()
+            except httpx.HTTPError:
+                logger.warning(
+                    "espn_scoreboard_response_error",
+                    sport=sport,
+                    url=url,
+                    request_type=label,
+                    status_code=resp.status_code,
+                )
+                continue
+            for event in resp.json().get("events", []):
+                event_id = event.get("id")
+                if event_id:
+                    events_by_id[event_id] = event
+        return events_by_id
+
     async def poll_once(self) -> list[dict]:
         updates = []
         has_live_game = False
         has_upcoming_game = False
         dates_value = _espn_dates_value()
         for sport in self.sports:
-            url = SCOREBOARD_URLS.get(sport)
-            if not url:
+            urls = SCOREBOARD_URLS.get(sport)
+            if not urls:
                 continue
-            try:
-                default_resp, today_resp = await asyncio.gather(
-                    self.client.get(url),
-                    self.client.get(url, params={"dates": dates_value}),
-                )
-            except (httpx.HTTPError, Exception):
-                logger.exception("espn_scoreboard_error", sport=sport)
-                continue
-
+            # ESPN dedupes by event_id across feeds, so the same game listed
+            # by two competition endpoints (e.g. a UCL match also on eng.1)
+            # is only processed once.
             events_by_id: dict[str, dict[str, Any]] = {}
-            for resp, label in ((default_resp, "default"), (today_resp, "today")):
-                try:
-                    resp.raise_for_status()
-                except httpx.HTTPError:
-                    logger.warning(
-                        "espn_scoreboard_response_error",
-                        sport=sport,
-                        request_type=label,
-                        status_code=resp.status_code,
-                    )
-                    continue
-                for event in resp.json().get("events", []):
-                    event_id = event.get("id")
-                    if event_id:
-                        events_by_id[event_id] = event
+            for url in urls:
+                events_by_id.update(
+                    await self._fetch_url_events(url, sport, dates_value)
+                )
 
             for event in events_by_id.values():
                 parsed = _parse_game(event, sport)
