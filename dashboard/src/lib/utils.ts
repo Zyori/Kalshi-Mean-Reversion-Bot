@@ -94,7 +94,16 @@ const LIVE_STATUS_MARKERS = [
   "shootout",
   "intermission",
 ];
-const FINAL_STATUS_MARKERS = ["final", "post", "full_time"];
+const FINAL_STATUS_MARKERS = [
+  "final",
+  "post",
+  "full_time",
+  "ft",
+  "aet",
+  "canceled",
+  "postponed",
+  "abandoned",
+];
 
 export function isLiveStatus(status: string | null | undefined): boolean {
   const normalized = String(status ?? "").toLowerCase();

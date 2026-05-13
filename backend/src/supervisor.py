@@ -38,6 +38,7 @@ from src.services.paper_runtime import (
 )
 from src.services.sport_config import SportConfigRegistry
 from src.services.trade_policy_service import evaluate_trade_gate
+from src.services.trade_reconciliation import reconcile_open_trades
 from src.strategy.detector import EventDetector
 
 logger = get_logger(__name__)
@@ -207,6 +208,31 @@ async def _snapshot_loop(
         await asyncio.sleep(settings.kalshi_snapshot_poll_interval_s)
 
 
+async def _reconciliation_loop(
+    simulator: PaperTradeSimulator,
+    session_factory: async_sessionmaker,
+    hb: LoopHeartbeat,
+) -> None:
+    """Periodic safety net for trade resolution.
+
+    The scoreboard loop already resolves trades the moment a game flips to
+    final, but that depends on us seeing the transition. If the supervisor
+    was down during the transition (or the game went final while we were
+    catching up on a backlog), the trade stays open. This loop scans every
+    few minutes and closes anything that slipped through.
+    """
+    while True:
+        hb.tick()
+        try:
+            async with session_factory() as db:
+                await reconcile_open_trades(db, simulator)
+            hb.success()
+        except Exception as e:
+            hb.error(e)
+            logger.exception("reconciliation_loop_error")
+        await asyncio.sleep(settings.trade_reconciliation_interval_s)
+
+
 async def _odds_loop(
     odds: OddsApiPoller,
     detector: EventDetector,
@@ -357,6 +383,9 @@ async def run_supervisor(session_factory: async_sessionmaker) -> None:
     snapshot_hb = heartbeats.register(
         "snapshot", settings.kalshi_snapshot_poll_interval_s
     )
+    reconciliation_hb = heartbeats.register(
+        "reconciliation", settings.trade_reconciliation_interval_s
+    )
     # Trader has no fixed interval — it blocks on the queue. Use the events
     # interval as a generous staleness bound; an empty queue is not unhealthy.
     trader_hb = heartbeats.register("trader", settings.events_poll_interval_s * 4)
@@ -376,6 +405,12 @@ async def run_supervisor(session_factory: async_sessionmaker) -> None:
         polled_sports=polled,
     )
 
+    # One-shot reconciliation at startup: close out any trades whose games
+    # finished while the supervisor wasn't watching the transition. The
+    # periodic loop below catches anything that slips through later.
+    async with session_factory() as db:
+        await reconcile_open_trades(db, simulator)
+
     try:
         async with asyncio.TaskGroup() as tg:
             tg.create_task(
@@ -388,6 +423,9 @@ async def run_supervisor(session_factory: async_sessionmaker) -> None:
             )
             tg.create_task(_odds_loop(odds, detector, session_factory, odds_hb))
             tg.create_task(_snapshot_loop(kalshi_rest, session_factory, snapshot_hb))
+            tg.create_task(
+                _reconciliation_loop(simulator, session_factory, reconciliation_hb)
+            )
             tg.create_task(
                 _trader_loop(
                     trade_queue, simulator, accumulators, session_factory, trader_hb

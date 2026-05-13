@@ -41,6 +41,10 @@ class Settings(BaseSettings):
     # the price time series independent of in-game events; tune up for live
     # games, leave generous default so passive pre-game polling is cheap.
     kalshi_snapshot_poll_interval_s: float = 30.0
+    # Periodic trade-reconciliation cadence. Closes out paper trades for
+    # games that finished while the supervisor wasn't watching the
+    # transition. Cheap query; 2 minutes is plenty.
+    trade_reconciliation_interval_s: float = 120.0
     paper_bankroll_start_cents: int = 100000
     paper_trade_min_confidence: float = 0.35
     paper_trade_min_deviation: float = 0.08

@@ -81,7 +81,16 @@ LIVE_STATUS_MARKERS = (
     "shootout",
     "intermission",
 )
-FINAL_STATUS_MARKERS = ("final", "post")
+FINAL_STATUS_MARKERS = (
+    "final",       # most US sports: STATUS_FINAL
+    "post",        # legacy / alt
+    "full_time",   # soccer: STATUS_FULL_TIME
+    "ft",          # soccer abbreviation seen in some feeds
+    "aet",         # soccer after-extra-time
+    "canceled",    # rare but a terminal state
+    "postponed",   # terminal for this date; will reschedule under a new id
+    "abandoned",   # match called off mid-way
+)
 ESPN_PLATFORM_TIME_ZONE = ZoneInfo("America/New_York")
 
 

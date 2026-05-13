@@ -5,6 +5,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.logging import get_logger
+from src.ingestion.espn_scoreboard import is_final_status
 from src.models.game import Game, GameEvent
 from src.models.market import Market, OpeningLine
 
@@ -243,8 +244,11 @@ async def upsert_game_from_scoreboard(db: AsyncSession, payload: dict) -> Game:
         game.latest_away_score = payload.get("away_score")
         if espn_id:
             game.espn_id = espn_id
-    normalized_status = str(payload.get("status", "")).lower()
-    if normalized_status in {"final", "status_final", "post"}:
+    # Use the same is_final_status the scoreboard uses — it understands
+    # soccer's STATUS_FULL_TIME / STATUS_FINAL_PEN / STATUS_FT alongside
+    # the US-sports STATUS_FINAL. Single source of truth for "is this
+    # game over?" keeps the trade-resolution path aligned with ingestion.
+    if is_final_status(payload.get("status", "")):
         game.final_home_score = payload.get("home_score")
         game.final_away_score = payload.get("away_score")
     else:
