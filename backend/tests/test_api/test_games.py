@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import bcrypt
@@ -47,6 +47,9 @@ async def test_list_games_dedupes_matchups_and_serializes_utc(
     client: AsyncClient,
     _authed: str,
 ):
+    # Use a start time inside the days_ahead window relative to now so the
+    # test stays valid regardless of the calendar date it runs on.
+    kickoff = datetime.now(UTC) + timedelta(hours=2)
     async with main_module.session_factory() as db:
         db.add_all(
             [
@@ -54,7 +57,7 @@ async def test_list_games_dedupes_matchups_and_serializes_utc(
                     sport="mlb",
                     away_team="Milwaukee Brewers",
                     home_team="Detroit Tigers",
-                    start_time=datetime(2026, 4, 22, 22, 40),
+                    start_time=kickoff.replace(tzinfo=None),
                     status="scheduled",
                     opening_line_home_prob=0.57,
                 ),
@@ -62,7 +65,7 @@ async def test_list_games_dedupes_matchups_and_serializes_utc(
                     sport="mlb",
                     away_team="Milwaukee Brewers",
                     home_team="Detroit Tigers",
-                    start_time=datetime(2026, 4, 22, 22, 41, tzinfo=UTC),
+                    start_time=kickoff + timedelta(minutes=1),
                     status="STATUS_IN_PROGRESS",
                     espn_id="401815044",
                     latest_away_score=2,
