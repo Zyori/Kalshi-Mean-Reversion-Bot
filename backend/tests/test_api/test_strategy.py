@@ -46,9 +46,7 @@ async def test_strategy_catalog_exposes_live_policy(
     assert "nba" in sports
     assert sports["nba"]["moneyline"]["params"]["min_favorite_prob"] == 0.60
     team_total = next(
-        market
-        for market in sports["mlb"]["markets"]
-        if market["market_category"] == "team_total"
+        market for market in sports["mlb"]["markets"] if market["market_category"] == "team_total"
     )
     assert team_total["candidate_edge_min"] == 0.5
     assert team_total["candidate_edge_max"] == 2.0

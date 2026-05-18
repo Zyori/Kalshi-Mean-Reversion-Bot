@@ -85,9 +85,7 @@ def serialize_trade(trade: PaperTrade) -> dict[str, Any]:
     trigger_event = trade.game_event
     trigger_game = trigger_event.game if trigger_event else None
     game_context = _loads_json(trade.game_context)
-    matchup = (
-        f"{trigger_game.away_team} @ {trigger_game.home_team}" if trigger_game else None
-    )
+    matchup = f"{trigger_game.away_team} @ {trigger_game.home_team}" if trigger_game else None
     selected_team = None
     opposing_team = None
     contract_label_yes = None

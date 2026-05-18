@@ -82,14 +82,14 @@ LIVE_STATUS_MARKERS = (
     "intermission",
 )
 FINAL_STATUS_MARKERS = (
-    "final",       # most US sports: STATUS_FINAL
-    "post",        # legacy / alt
-    "full_time",   # soccer: STATUS_FULL_TIME
-    "ft",          # soccer abbreviation seen in some feeds
-    "aet",         # soccer after-extra-time
-    "canceled",    # rare but a terminal state
-    "postponed",   # terminal for this date; will reschedule under a new id
-    "abandoned",   # match called off mid-way
+    "final",  # most US sports: STATUS_FINAL
+    "post",  # legacy / alt
+    "full_time",  # soccer: STATUS_FULL_TIME
+    "ft",  # soccer abbreviation seen in some feeds
+    "aet",  # soccer after-extra-time
+    "canceled",  # rare but a terminal state
+    "postponed",  # terminal for this date; will reschedule under a new id
+    "abandoned",  # match called off mid-way
 )
 ESPN_PLATFORM_TIME_ZONE = ZoneInfo("America/New_York")
 
@@ -108,6 +108,7 @@ def _espn_dates_value(now: datetime | None = None) -> str:
     current = now or datetime.now(UTC)
     eastern_date = current.astimezone(ESPN_PLATFORM_TIME_ZONE)
     return eastern_date.strftime("%Y%m%d")
+
 
 def _parse_game(event: dict, sport: str) -> dict[str, Any]:
     competition = event["competitions"][0]
@@ -203,9 +204,7 @@ class EspnScoreboardPoller:
             # is only processed once.
             events_by_id: dict[str, dict[str, Any]] = {}
             for url in urls:
-                events_by_id.update(
-                    await self._fetch_url_events(url, sport, dates_value)
-                )
+                events_by_id.update(await self._fetch_url_events(url, sport, dates_value))
 
             for event in events_by_id.values():
                 parsed = _parse_game(event, sport)

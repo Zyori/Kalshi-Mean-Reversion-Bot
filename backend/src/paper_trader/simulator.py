@@ -86,14 +86,10 @@ def _build_reasoning(
     )
     if side == "yes":
         thesis = (
-            f"taking {selected_team} because YES looks too cheap "
-            f"after the {event_type.lower()}"
+            f"taking {selected_team} because YES looks too cheap after the {event_type.lower()}"
         )
     else:
-        thesis = (
-            f"taking {selected_team} because YES looks too rich "
-            f"after the {event_type.lower()}"
-        )
+        thesis = f"taking {selected_team} because YES looks too rich after the {event_type.lower()}"
     return (
         f"{thesis}. "
         f"{event_type} produced a {classification} in {state_text or 'live play'}. "

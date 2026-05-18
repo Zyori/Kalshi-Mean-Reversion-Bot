@@ -165,9 +165,8 @@ def classify_spread_reversion(
     if progress == 0.0 or progress > 0.8:
         return "neutral"
 
-    if (
-        min_edge <= cover_edge <= max_edge
-        and (is_scoring_event(event_text) or is_high_leverage_event(event_text))
+    if min_edge <= cover_edge <= max_edge and (
+        is_scoring_event(event_text) or is_high_leverage_event(event_text)
     ):
         return "reversion_candidate"
 
@@ -204,9 +203,8 @@ def classify_total_reversion(
     if progress > 0.85:
         return "neutral"
 
-    if (
-        min_edge <= total_edge <= max_edge
-        and (is_scoring_event(event_text) or is_high_leverage_event(event_text))
+    if min_edge <= total_edge <= max_edge and (
+        is_scoring_event(event_text) or is_high_leverage_event(event_text)
     ):
         return "reversion_candidate"
 
@@ -245,9 +243,8 @@ def classify_team_total_reversion(
     if progress > 0.85:
         return "neutral"
 
-    if (
-        min_edge <= total_edge <= max_edge
-        and (is_scoring_event(event_text) or is_high_leverage_event(event_text))
+    if min_edge <= total_edge <= max_edge and (
+        is_scoring_event(event_text) or is_high_leverage_event(event_text)
     ):
         return "reversion_candidate"
 

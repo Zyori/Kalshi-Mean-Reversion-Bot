@@ -87,19 +87,11 @@ def _parse_total_market(market: dict[str, Any] | None) -> tuple[float | None, di
 
     outcomes = market.get("outcomes", [])
     over = next(
-        (
-            outcome
-            for outcome in outcomes
-            if str(outcome.get("name", "")).lower() == "over"
-        ),
+        (outcome for outcome in outcomes if str(outcome.get("name", "")).lower() == "over"),
         None,
     )
     under = next(
-        (
-            outcome
-            for outcome in outcomes
-            if str(outcome.get("name", "")).lower() == "under"
-        ),
+        (outcome for outcome in outcomes if str(outcome.get("name", "")).lower() == "under"),
         None,
     )
     if over is not None:
@@ -168,6 +160,7 @@ def _parse_team_totals_market(
         return None, None, {}
 
     return home_total, away_total, {"home": home_raw, "away": away_raw}
+
 
 def american_to_implied_prob(odds: int) -> float:
     if odds > 0:

@@ -403,10 +403,7 @@ async def restore_portfolio_state(
     )
     bankroll_cents = settings.paper_bankroll_start_cents + int(total_pnl or 0)
     open_trades = await load_open_trades(db)
-    open_positions = {
-        trade.id: int(trade.kelly_size_cents or 0)
-        for trade in open_trades
-    }
+    open_positions = {trade.id: int(trade.kelly_size_cents or 0) for trade in open_trades}
     portfolio.sync_state(
         bankroll_cents=bankroll_cents,
         open_positions=open_positions,

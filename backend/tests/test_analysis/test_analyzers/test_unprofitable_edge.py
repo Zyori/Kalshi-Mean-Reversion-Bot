@@ -5,16 +5,14 @@ from .conftest import ctx, trade
 
 def test_silent_below_min_trades():
     trades = [
-        trade(id=i, signal_kind="e", won=False, pnl_cents=-100, stake_cents=100)
-        for i in range(20)
+        trade(id=i, signal_kind="e", won=False, pnl_cents=-100, stake_cents=100) for i in range(20)
     ]
     assert unprofitable_edge.evaluate(ctx(*trades)) == []
 
 
 def test_silent_when_break_even_or_better():
     trades = [
-        trade(id=i, signal_kind="e", won=True, pnl_cents=100, stake_cents=100)
-        for i in range(25)
+        trade(id=i, signal_kind="e", won=True, pnl_cents=100, stake_cents=100) for i in range(25)
     ]
     assert unprofitable_edge.evaluate(ctx(*trades)) == []
 
@@ -37,8 +35,7 @@ def test_silent_when_loss_below_2x_avg_stake():
 def test_flags_unprofitable_edge():
     # 25 trades, total loss > 2× avg stake.
     trades = [
-        trade(id=i, signal_kind="e", won=False, pnl_cents=-100, stake_cents=100)
-        for i in range(25)
+        trade(id=i, signal_kind="e", won=False, pnl_cents=-100, stake_cents=100) for i in range(25)
     ]
     findings = unprofitable_edge.evaluate(ctx(*trades))
     assert len(findings) == 1

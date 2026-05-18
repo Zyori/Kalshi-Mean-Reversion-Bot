@@ -6,26 +6,19 @@ from .conftest import ctx, trade
 def _edges_with_n_each(*, edge: str, wins: int, losses: int):
     return [
         *(trade(id=i, signal_kind=edge, won=True, pnl_cents=100) for i in range(wins)),
-        *(
-            trade(id=1000 + i, signal_kind=edge, won=False, pnl_cents=-100)
-            for i in range(losses)
-        ),
+        *(trade(id=1000 + i, signal_kind=edge, won=False, pnl_cents=-100) for i in range(losses)),
     ]
 
 
 def test_silent_when_sample_too_small_for_any_callout():
     # 4 trades: below MIN_TRADES_FOR_CALLOUT (5); no Finding at all.
-    findings = per_edge_health.evaluate(
-        ctx(*_edges_with_n_each(edge="goal", wins=2, losses=2))
-    )
+    findings = per_edge_health.evaluate(ctx(*_edges_with_n_each(edge="goal", wins=2, losses=2)))
     assert findings == []
 
 
 def test_emits_watching_finding_when_sample_under_verdict_threshold():
     # 10 trades: between callout (5) and verdict (15) — observation only.
-    findings = per_edge_health.evaluate(
-        ctx(*_edges_with_n_each(edge="goal", wins=5, losses=5))
-    )
+    findings = per_edge_health.evaluate(ctx(*_edges_with_n_each(edge="goal", wins=5, losses=5)))
     assert len(findings) == 1
     assert findings[0].type == "edge_observation"
     assert "Watching" in findings[0].title
@@ -62,7 +55,5 @@ def test_emits_mixed_signal_when_ci_straddles_breakeven():
 
 def test_ignores_trades_with_no_signal_kind():
     # Untagged trades (signal_kind=None) shouldn't synthesize a "None" edge.
-    findings = per_edge_health.evaluate(
-        ctx(*[trade(id=i, signal_kind=None) for i in range(20)])
-    )
+    findings = per_edge_health.evaluate(ctx(*[trade(id=i, signal_kind=None) for i in range(20)]))
     assert findings == []

@@ -12,8 +12,7 @@ MARKET_POLICY_ORDER: tuple[str, ...] = (
 MARKET_POLICY_METADATA: dict[str, dict[str, str]] = {
     "moneyline": {
         "source": (
-            "Real Kalshi demo moneyline when matched, otherwise "
-            "synthetic home-win pricing."
+            "Real Kalshi demo moneyline when matched, otherwise synthetic home-win pricing."
         ),
         "summary": (
             "Trade the opener or matched Kalshi price when a live event "
@@ -21,8 +20,7 @@ MARKET_POLICY_METADATA: dict[str, dict[str, str]] = {
         ),
         "status": "live",
         "status_note": (
-            "Actively logging and trading on matched Kalshi demo or "
-            "synthetic moneyline rails."
+            "Actively logging and trading on matched Kalshi demo or synthetic moneyline rails."
         ),
     },
     "spread": {
@@ -35,10 +33,7 @@ MARKET_POLICY_METADATA: dict[str, dict[str, str]] = {
         "status_note": "Actively logging and trading on synthetic spread rails.",
     },
     "total": {
-        "source": (
-            "Synthetic game total rail built from opening total and "
-            "live pace projection."
-        ),
+        "source": ("Synthetic game total rail built from opening total and live pace projection."),
         "summary": (
             "Fade temporary pace shocks back toward the opening total when "
             "scoring bursts or leverage events push projections out of line."

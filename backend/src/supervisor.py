@@ -375,14 +375,10 @@ async def run_supervisor(session_factory: async_sessionmaker) -> None:
     accumulators = Accumulators()
 
     heartbeats = HeartbeatRegistry()
-    scoreboard_hb = heartbeats.register(
-        "scoreboard", settings.scoreboard_pregame_poll_interval_s
-    )
+    scoreboard_hb = heartbeats.register("scoreboard", settings.scoreboard_pregame_poll_interval_s)
     events_hb = heartbeats.register("events", settings.events_poll_interval_s)
     odds_hb = heartbeats.register("odds", settings.odds_poll_interval_s)
-    snapshot_hb = heartbeats.register(
-        "snapshot", settings.kalshi_snapshot_poll_interval_s
-    )
+    snapshot_hb = heartbeats.register("snapshot", settings.kalshi_snapshot_poll_interval_s)
     reconciliation_hb = heartbeats.register(
         "reconciliation", settings.trade_reconciliation_interval_s
     )
@@ -423,13 +419,9 @@ async def run_supervisor(session_factory: async_sessionmaker) -> None:
             )
             tg.create_task(_odds_loop(odds, detector, session_factory, odds_hb))
             tg.create_task(_snapshot_loop(kalshi_rest, session_factory, snapshot_hb))
+            tg.create_task(_reconciliation_loop(simulator, session_factory, reconciliation_hb))
             tg.create_task(
-                _reconciliation_loop(simulator, session_factory, reconciliation_hb)
-            )
-            tg.create_task(
-                _trader_loop(
-                    trade_queue, simulator, accumulators, session_factory, trader_hb
-                )
+                _trader_loop(trade_queue, simulator, accumulators, session_factory, trader_hb)
             )
     except* Exception as eg:
         for exc in eg.exceptions:

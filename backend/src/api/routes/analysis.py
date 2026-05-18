@@ -40,9 +40,12 @@ async def analysis_summary(db: AsyncSession = Depends(get_db)):
         select(func.count(PaperTrade.id)).where(PaperTrade.status == "resolved_push")
     )
     total_pnl = await db.scalar(select(func.sum(PaperTrade.pnl_cents))) or 0
-    pending_wagers = await db.scalar(
-        select(func.sum(PaperTrade.kelly_size_cents)).where(PaperTrade.status == "open")
-    ) or 0
+    pending_wagers = (
+        await db.scalar(
+            select(func.sum(PaperTrade.kelly_size_cents)).where(PaperTrade.status == "open")
+        )
+        or 0
+    )
     open_count = await db.scalar(
         select(func.count(PaperTrade.id)).where(PaperTrade.status == "open")
     )
@@ -101,10 +104,7 @@ async def analysis_by_event_type(db: AsyncSession = Depends(get_db)):
         bucket["count"] += 1
         bucket["total_pnl_cents"] += row.pnl_cents or 0
 
-    items = [
-        {"event_type": event_type, **stats}
-        for event_type, stats in buckets.items()
-    ]
+    items = [{"event_type": event_type, **stats} for event_type, stats in buckets.items()]
     items.sort(key=lambda item: (-item["count"], item["event_type"]))
     return items[:20]
 
@@ -185,14 +185,11 @@ async def analysis_skip_reasons(db: AsyncSession = Depends(get_db)):
 
 @router.get("/analysis/decision-summary")
 async def analysis_decision_summary(db: AsyncSession = Depends(get_db)):
-    stmt = (
-        select(
-            TradeDecision.market_category,
-            TradeDecision.action,
-            func.count(TradeDecision.id).label("count"),
-        )
-        .group_by(TradeDecision.market_category, TradeDecision.action)
-    )
+    stmt = select(
+        TradeDecision.market_category,
+        TradeDecision.action,
+        func.count(TradeDecision.id).label("count"),
+    ).group_by(TradeDecision.market_category, TradeDecision.action)
     result = await db.execute(stmt)
     rows = [
         {

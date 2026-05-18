@@ -113,15 +113,13 @@ async def test_analysis_decision_audits_are_available(
     baseline_skip = await client.get("/api/analysis/skip-reasons")
     assert baseline_skip.status_code == 200
     baseline_skip_rows = {
-        (row["market_category"], row["skip_reason"]): row["count"]
-        for row in baseline_skip.json()
+        (row["market_category"], row["skip_reason"]): row["count"] for row in baseline_skip.json()
     }
 
     baseline_summary = await client.get("/api/analysis/decision-summary")
     assert baseline_summary.status_code == 200
     baseline_summary_rows = {
-        (row["market_category"], row["action"]): row["count"]
-        for row in baseline_summary.json()
+        (row["market_category"], row["action"]): row["count"] for row in baseline_summary.json()
     }
 
     async with main_module.session_factory() as db:
@@ -151,8 +149,7 @@ async def test_analysis_decision_audits_are_available(
     skip_reasons = await client.get("/api/analysis/skip-reasons")
     assert skip_reasons.status_code == 200
     skip_rows = {
-        (row["market_category"], row["skip_reason"]): row["count"]
-        for row in skip_reasons.json()
+        (row["market_category"], row["skip_reason"]): row["count"] for row in skip_reasons.json()
     }
     assert (
         skip_rows[("spread", "below_confidence_threshold")]
@@ -166,26 +163,21 @@ async def test_analysis_decision_audits_are_available(
     decision_summary = await client.get("/api/analysis/decision-summary")
     assert decision_summary.status_code == 200
     summary_rows = {
-        (row["market_category"], row["action"]): row["count"]
-        for row in decision_summary.json()
+        (row["market_category"], row["action"]): row["count"] for row in decision_summary.json()
     }
     assert (
-        summary_rows[("spread", "opened")]
-        == baseline_summary_rows.get(("spread", "opened"), 0) + 1
+        summary_rows[("spread", "opened")] == baseline_summary_rows.get(("spread", "opened"), 0) + 1
     )
     assert (
         summary_rows[("spread", "skipped")]
         == baseline_summary_rows.get(("spread", "skipped"), 0) + 1
     )
     assert (
-        summary_rows[("total", "skipped")]
-        == baseline_summary_rows.get(("total", "skipped"), 0) + 1
+        summary_rows[("total", "skipped")] == baseline_summary_rows.get(("total", "skipped"), 0) + 1
     )
 
 
-async def test_findings_create_and_filter_by_sport(
-    client: AsyncClient, _authed: str
-):
+async def test_findings_create_and_filter_by_sport(client: AsyncClient, _authed: str):
     await _login(client, _authed)
 
     # Create a soccer finding
@@ -225,9 +217,7 @@ async def test_findings_create_and_filter_by_sport(
     assert {"Late-game goals overshoot", "Round 1 KOs"}.issubset(titles)
 
 
-async def test_finding_create_rejects_empty_title(
-    client: AsyncClient, _authed: str
-):
+async def test_finding_create_rejects_empty_title(client: AsyncClient, _authed: str):
     await _login(client, _authed)
     resp = await client.post(
         "/api/insights",

@@ -28,13 +28,16 @@ class NbaClassifier:
             is_home_favorite=is_home_favorite,
         )
         event_text = f"{event_type.lower()} {description.lower()}"
-        high_leverage_event = any(token in event_text for token in (
-            "timeout",
-            "technical",
-            "flagrant",
-            "turnover",
-            "steal",
-        ))
+        high_leverage_event = any(
+            token in event_text
+            for token in (
+                "timeout",
+                "technical",
+                "flagrant",
+                "turnover",
+                "steal",
+            )
+        )
 
         if period_num >= 3 and deficit > self.max_deficit_reversion:
             return "structural_shift"

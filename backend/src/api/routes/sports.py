@@ -27,7 +27,5 @@ class SportsResponse(BaseModel):
 @router.get("/api/sports", response_model=SportsResponse)
 async def list_sports() -> SportsResponse:
     cfg = registry.sport_config
-    entries = [
-        SportEntry(sport=sport, mode=cfg.mode(sport)) for sport in Sport
-    ]
+    entries = [SportEntry(sport=sport, mode=cfg.mode(sport)) for sport in Sport]
     return SportsResponse(sports=entries)

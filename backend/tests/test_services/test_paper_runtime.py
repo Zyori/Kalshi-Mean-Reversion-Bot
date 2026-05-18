@@ -65,9 +65,7 @@ async def test_attach_synthetic_market_contexts_builds_multiple_market_views(db_
         assert categories.count("team_total") == 2
         assert set(categories) == {"moneyline", "spread", "total", "team_total"}
         total_payload = next(
-            payload
-            for payload in payloads
-            if payload["market_category"] == "total"
+            payload for payload in payloads if payload["market_category"] == "total"
         )
         assert total_payload["market_label_yes"] == "Over 221.5"
         assert total_payload["market_label_no"] == "Under 221.5"
@@ -97,31 +95,25 @@ async def test_resolve_game_trades_settles_spread_total_and_pushes(db_session_fa
         db.add(game)
         await db.flush()
 
-        spread_market, total_market = (
-            await attach_synthetic_market_contexts(
-                db,
-                game,
-                {
-                    "sport": "nba",
-                    "espn_id": "401000001",
-                    "event_type": "Timeout",
-                    "home_score": 52,
-                    "away_score": 59,
-                    "period": "2",
-                },
-                include_moneyline=False,
-            )
+        spread_market, total_market = await attach_synthetic_market_contexts(
+            db,
+            game,
+            {
+                "sport": "nba",
+                "espn_id": "401000001",
+                "event_type": "Timeout",
+                "home_score": 52,
+                "away_score": 59,
+                "period": "2",
+            },
+            include_moneyline=False,
         )
 
         spread_payload = next(
-            item
-            for item in (spread_market, total_market)
-            if item["market_category"] == "spread"
+            item for item in (spread_market, total_market) if item["market_category"] == "spread"
         )
         total_payload = next(
-            item
-            for item in (spread_market, total_market)
-            if item["market_category"] == "total"
+            item for item in (spread_market, total_market) if item["market_category"] == "total"
         )
 
         db.add_all(

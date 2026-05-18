@@ -42,8 +42,7 @@ def evaluate(ctx: AnalysisContext) -> list[Finding]:
                     title=f"Watching: {edge}",
                     body=body,
                     recommendation=(
-                        f"Sample is too small ({n} trades) to draw conclusions. "
-                        f"Hold for more data."
+                        f"Sample is too small ({n} trades) to draw conclusions. Hold for more data."
                     ),
                     confidence=0.3,
                     data={
@@ -107,8 +106,7 @@ def evaluate(ctx: AnalysisContext) -> list[Finding]:
                     title=f"Mixed signal: {edge}",
                     body=body,
                     recommendation=(
-                        "Win rate's CI straddles break-even — no verdict yet. "
-                        "Keep collecting."
+                        "Win rate's CI straddles break-even — no verdict yet. Keep collecting."
                     ),
                     confidence=0.4,
                     data={

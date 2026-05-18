@@ -95,7 +95,7 @@ SPORT_EVENT_MARKERS: dict[str, tuple[str, ...]] = {
     # with a dedicated type ("hits the post", "VAR" overturns).
     Sport.SOCCER: (
         # Score-changing
-        "goal",        # ESPN type.text == "Goal" (also matches "Own Goal")
+        "goal",  # ESPN type.text == "Goal" (also matches "Own Goal")
         # Discipline (often score-impacting via 10 vs 11 men)
         "red card",
         "yellow card",

@@ -5,10 +5,7 @@ from .conftest import ctx, trade
 
 def _league(league: str, wins: int, losses: int, start_id: int = 0):
     return [
-        *(
-            trade(id=start_id + i, league=league, won=True, pnl_cents=100)
-            for i in range(wins)
-        ),
+        *(trade(id=start_id + i, league=league, won=True, pnl_cents=100) for i in range(wins)),
         *(
             trade(
                 id=start_id + 1000 + i,

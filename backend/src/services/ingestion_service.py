@@ -161,14 +161,10 @@ async def _merge_duplicate_games(
             .values(game_id=canonical.id)
         )
         await db.execute(
-            update(GameEvent)
-            .where(GameEvent.game_id == duplicate.id)
-            .values(game_id=canonical.id)
+            update(GameEvent).where(GameEvent.game_id == duplicate.id).values(game_id=canonical.id)
         )
         await db.execute(
-            update(Market)
-            .where(Market.game_id == duplicate.id)
-            .values(game_id=canonical.id)
+            update(Market).where(Market.game_id == duplicate.id).values(game_id=canonical.id)
         )
         await db.delete(duplicate)
 
