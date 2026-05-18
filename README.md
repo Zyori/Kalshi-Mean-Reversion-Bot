@@ -1,57 +1,102 @@
-# Kalshi Mean Reversion Bot
+# Kalshi Sports Trading Research Bot
 
-A sports market research bot for collecting sportsbook baselines, live game events, and paper-trading signals for future mean-reversion work on [Kalshi](https://kalshi.com).
+A sports-market research bot that collects sportsbook baselines and live game
+events, then paper-trades directional signals against real
+[Kalshi](https://kalshi.com) orderbook prices. The goal is a clean,
+statistically honest dataset: trade live, measure every edge, and let the data
+say which signals are worth real money.
 
-**Phase 1** is focused on durable data collection and paper-trade scaffolding. The backend now persists schedules, opening lines, and detected ESPN events so the project can run continuously and build a dataset before real-money trading is considered.
+The project began as a pure mean-reversion bet — fade the market's overreaction
+to in-game events. That single thesis didn't hold up, so the strategy layer
+evolved into a **registry of named edges** that test competing directions
+(reversion *and* continuation) side by side, each tagged so its win rate and
+P&L can be measured independently.
 
 ## How It Works
 
 ```
 ESPN Scoreboard → keeps schedules and live game states in sync
-ESPN Events     → detects significant live game events
-The Odds API    → captures pre-game sportsbook lines as baselines
-Kalshi REST/WS  → adapter layer exists, demo-first by default
+ESPN Events     → detects significant live game events (goals, cards, etc.)
+The Odds API    → captures pre-game sportsbook lines as probability baselines
+Kalshi REST/WS  → real orderbook prices; demo environment by default
                     ↓
-Strategy Engine → classifies events (reversion_candidate / structural_shift / neutral)
-                → scores opportunities once Kalshi price data is attached
+Strategy Engine → per-sport edge registry — small modules, one per hypothesis
+                → each edge inspects game state + baseline and may fire a
+                  directional signal tagged with its signal_kind
                     ↓
-Paper Trader    → quarter-Kelly sizing with Bayesian edge shrinkage
-                → slippage model (0.5% + depth adjustment)
-                → currently scaffolded behind the ingestion layer
+Paper Trader    → records a paper bet against the real Kalshi ask
+                → flat sizing in the research phase (equal-weight trades keep
+                  per-edge stats comparable); Kelly sizing available
+                → slippage model on entry price
                     ↓
-Analysis Engine → binomial test (win rate > 50%)
-                → t-test (mean PnL > $0)
-                → regime change detection (last 30 vs all-time)
-                → logs insights to DB when thresholds crossed
+Analysis Engine → analyzer registry — small modules, one per question
+                → per-edge health, edge decay, unprofitability, league skew
+                → significance tests (binomial, t-test) gate findings
+                → writes findings to the insights table for operator review
                     ↓
-Dashboard       → Markets / Trades / Analytics views
-                → equity curve, Kelly comparison, sport breakdown
+Dashboard       → sport-first overview, per-sport pages, strategy catalog,
+                  analytics (equity curve, sizing comparison), trade history
 ```
 
-## Current Phase-1 Status
+## Current Status
 
-- Persisted: games, opening lines, ESPN events, **Kalshi orderbook snapshots** (event-driven + periodic time-series).
-- Adaptive polling: idle schedule sync backs off heavily, live games poll quickly.
-- Auth: password-protected admin backend with separate public status endpoints.
-- Kalshi mode: configured for `demo` by default. Market discovery, snapshot capture, and paper-trader integration are all wired through `attach_real_market_context` and the periodic `_snapshot_loop`.
+This is a research-phase build log. It runs continuously to accumulate a
+historical dataset and a Kalshi price time series before any real-money
+trading is considered.
 
-The bot is ready to build a historical dataset *and* maintain a price time series for active sports. Kalshi WS streaming is implemented but not yet wired into the supervisor — it's the next step for higher-frequency snapshots and lower API budget.
+- **Persisted:** games, opening lines, ESPN game events, Kalshi orderbook
+  snapshots (event-driven *and* periodic time-series), paper trades, and
+  per-sport statistical findings.
+- **Adaptive polling:** idle schedule sync backs off heavily; live games poll
+  quickly. Keeps the project light on a shared VPS and inside free-tier API
+  budgets.
+- **Auth:** password-protected admin backend with separate public status
+  endpoints, so the build log can be shared without exposing controls.
+- **Kalshi mode:** `demo` by default. Market discovery, snapshot capture, and
+  paper-trader integration are wired through `attach_real_market_context` and
+  the periodic snapshot loop. WS streaming is implemented but not yet wired
+  into the supervisor — it's the next step for higher-frequency snapshots.
+
+## Strategy: Edge Registries
+
+Both the strategy and analysis layers are built as **ordered registries of
+small single-purpose modules**, so adding a hypothesis is writing one file and
+appending it to a tuple — no changes to the engine.
+
+**Soccer edges** (`src/strategy/sports/soccer/edges/`) — the active sport:
+
+| Edge | Direction | Thesis |
+|------|-----------|--------|
+| `red_card_overreact` | reversion | Market overreacts to a red card; fade it. |
+| `penalty_awarded` | event | A penalty is a large, mispriced probability swing. |
+| `mean_reversion_favorite_trails` | reversion | When the favorite concedes, the price drops further than the true shift warrants. |
+| `trend_affirm_favorite_scores` | continuation | When the favorite scores early, the market is slow to update — ride the move. |
+
+**Analyzers** (`src/analysis/analyzers/`) — questions asked of the trade log:
+`per_edge_health`, `edge_decay`, `unprofitable_edge`, `league_skew`. Each
+returns findings only when a significance test crosses threshold.
 
 ## Sports Covered
 
-NHL, NBA, MLB, NFL, Soccer (EPL), UFC are recognized by the collectors and classifiers. Per-sport engagement is controlled by a single source of truth — the `sport_configs` table — with three modes:
+NHL, NBA, MLB, NFL, Soccer, and UFC are recognized by the collectors and
+classifiers. Per-sport engagement is a single source of truth — the
+`sport_configs` table — with three modes:
 
 - **active** — full ingestion, paper trades placed, strategy + findings tracked.
-- **passive** — schedule + opening lines only; no live event polling, no paper trades.
+- **passive** — schedule + opening lines only; no live polling, no paper trades.
 - **off** — not polled at all.
 
-The bot currently runs **soccer = active** (FIFA World Cup runway, June 11 – July 19, 2026) with everything else **passive**. Flipping a sport between modes is a database row change — no code changes required.
+The bot currently runs **soccer = active** (2026 FIFA World Cup runway,
+June 11 – July 19) with everything else **passive**. Flipping a sport between
+modes is a database row change — no code changes required.
 
 ## Tech Stack
 
-**Backend:** Python 3.12, FastAPI, SQLAlchemy (async), Postgres + asyncpg (SQLite-in-memory only for tests), Alembic, structlog, scipy, pandas
+**Backend:** Python 3.12, FastAPI, SQLAlchemy (async), Postgres + asyncpg
+(SQLite-in-memory for tests), Alembic, structlog, scipy, pandas
 
-**Dashboard:** React 19, TypeScript, Vite, Tailwind CSS v4, TanStack Query + Table, Lightweight Charts, Recharts
+**Dashboard:** React 19, TypeScript, Vite, Tailwind CSS v4, TanStack Query +
+Table, Lightweight Charts, Recharts
 
 ## Setup
 
@@ -85,18 +130,22 @@ The dashboard proxies `/api` requests to the backend at `localhost:8000`.
 | `KALSHI_ENVIRONMENT` | No | `demo` (default) or `prod` |
 | `ODDS_API_KEY` | Yes | The Odds API key (free tier: 500 req/month) |
 | `DATABASE_URL` | Yes | Postgres DSN, e.g. `postgresql+asyncpg://lutz_bot:PASSWORD@127.0.0.1:5432/lutz_bot` |
+| `ADMIN_PASSWORD_HASH` | Yes | bcrypt hash from `scripts/hash_password.py` |
+| `SESSION_SECRET` | Yes | Secret for signing session cookies |
 | `SCOREBOARD_LIVE_POLL_INTERVAL_S` | No | Live-game scoreboard cadence, default `10` |
 | `SCOREBOARD_PREGAME_POLL_INTERVAL_S` | No | Pregame cadence, default `300` |
 | `SCOREBOARD_IDLE_POLL_INTERVAL_S` | No | Idle schedule-sync cadence, default `43200` |
 | `ODDS_POLL_INTERVAL_S` | No | Opening-line sync cadence, default `43200` |
 | `EVENTS_POLL_INTERVAL_S` | No | Live event cadence for watched games, default `15` |
-| `KALSHI_SNAPSHOT_POLL_INTERVAL_S` | No | Periodic Kalshi orderbook snapshot cadence for active markets, default `30` |
+| `KALSHI_SNAPSHOT_POLL_INTERVAL_S` | No | Periodic Kalshi orderbook snapshot cadence, default `30` |
+
+See `.env.example` for the full list including optional email notifications.
 
 ## Testing
 
 ```bash
 cd backend
-uv run pytest tests/ -v      # 99 tests
+uv run pytest tests/ -q      # 234 tests
 uv run ruff check .          # linting
 uv run ruff format --check . # formatting
 ```
@@ -107,39 +156,46 @@ uv run ruff format --check . # formatting
 backend/
   src/
     ingestion/     # Kalshi REST/WS, ESPN scoreboard/events, Odds API
-    strategy/      # Event detector, classifier, scorer, 6 sport classifiers
-    paper_trader/  # Kelly sizing, portfolio tracking, trade simulator
-    analysis/      # Accumulators, significance tests, insight generation
-    api/routes/    # REST endpoints (games, trades, analysis, config)
-    services/      # Trade and config query services
-    models/        # SQLAlchemy ORM (7 tables)
+    strategy/      # Event detector, classifier, scorer, per-sport edge registries
+    paper_trader/  # Trade simulator, Kelly sizing, portfolio tracking
+    analysis/      # Accumulators, analyzer registry, significance tests
+    api/routes/    # REST endpoints (games, trades, analysis, config, ...)
+    services/      # Trade, config, ingestion, and runtime services
+    models/        # SQLAlchemy ORM (10 tables)
     core/          # Auth, DB, types, exceptions, logging
-  tests/           # 99 tests across strategy, paper trader, analysis, API
+  tests/           # 234 tests across ingestion, strategy, paper trader, analysis, API
   alembic/         # Async migrations
 dashboard/
   src/
-    pages/         # Markets, Trades, Analytics
-    components/    # Charts (equity curve, Kelly, sport breakdown), UI primitives
+    pages/         # Overview, per-Sport, Strategy, Analytics, Trades, Markets, Data, public status
+    components/    # Charts (equity curve, sizing comparison, sport breakdown), UI primitives
     hooks/         # TanStack Query hooks with polling
     lib/           # Typed API client, formatters
 ```
 
 ## API Endpoints
 
+The admin API is session-authenticated; public status endpoints are not.
+
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/api/health` | System health and data source status |
+| GET | `/api/status` | Public build-log status (no auth) |
+| GET | `/api/sports` | Per-sport config and engagement mode |
 | GET | `/api/games` | Active games (filterable by sport/status) |
 | GET | `/api/games/{id}` | Game detail with events and opening lines |
 | GET | `/api/events` | Recent events (filterable by sport/type) |
 | GET | `/api/trades` | Paper trade history (sortable, filterable) |
 | GET | `/api/trades/active` | Open positions |
-| GET | `/api/analysis/summary` | Win rate, PnL, trade counts |
-| GET | `/api/analysis/equity-curve` | Cumulative PnL time series |
-| GET | `/api/analysis/kelly-comparison` | Kelly vs flat sizing comparison |
-| GET | `/api/insights` | Statistical insights log |
+| GET | `/api/analysis/summary` | Win rate, P&L, trade counts |
+| GET | `/api/analysis/equity-curve` | Cumulative P&L time series |
+| GET | `/api/analysis/by-sport` | Per-sport performance breakdown |
+| GET | `/api/strategy` | Live strategy catalog and market policy |
+| GET | `/api/insights` | Statistical findings log |
 | PATCH | `/api/config/{key}` | Update strategy parameter |
 
 ## Notes
 
-This is a public build log as much as a trading project. Keep credentials out of the repo, keep the Kalshi key material outside the tree, and prefer small documented commits from `main`.
+This is a public build log as much as a trading project. Credentials stay out
+of the repo (`.env` is gitignored), Kalshi key material lives outside the tree,
+and the history is small, scoped commits straight off `main`.
