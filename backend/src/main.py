@@ -31,7 +31,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Kalshi Mean Reversion Bot",
+    title="Kalshi Sports Trading Research Bot",
     lifespan=lifespan,
     docs_url=None if settings.is_prod else "/docs",
     redoc_url=None if settings.is_prod else "/redoc",
